@@ -11,7 +11,7 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 
-def download_symbols(n_pages = 10):
+def download_stooq_symbols(n_pages = 10):
     """The function downloads and returns symbols(tickers) and anmes of Polish
     stocks from stooq.pl, which can be used to acquire historical stock prices
     100 tickers are contained on one page, there are 9 ticker pages at the time
@@ -29,7 +29,7 @@ def download_symbols(n_pages = 10):
         req = requests.get(url)
         # format the response usnign BS
         soup = BeautifulSoup(req.content, "lxml")
-        # extract table  that contains ticker codes
+        # extract table that contains ticker codes
         price_table = soup.find("table", {"class": "fth1"})
         table_body = price_table.find('tbody')
         # extract rows from the table
@@ -46,6 +46,29 @@ def download_symbols(n_pages = 10):
     # financial data sources)
     return symbol_list
 
+def download_bankier_symbols():
+    """Downloads and returns stock names available on bankier.pl. Can be used
+    to downloads historical financial data"""
+    # download page's content
+    url = "http://www.bankier.pl/gielda/notowania/akcje?index="
+    # send an http request
+    req = requests.get(url)
+    # format the response usnign BS
+    soup = BeautifulSoup(req.content, "lxml")
+    # extract te symbols from table
+    data_table = soup.find("div", {"class": "boxContent"})
+    table_body = data_table.find('tbody')
+    rows = table_body.find_all('tr')
+    data = []
+    for row in rows:
+        cols = row.find_all('td')
+        cols = [ele.text.strip() for ele in cols]
+        data.append([ele for ele in cols if ele])
+    # create a list of symbols
+    symbols = [item[0] for item in data if len(item)>0]
+    # return the list of symbols
+    return symbols
+    
 def download_historical_prices(symbol):
     """The function downloads all historical (daily) prices for a given symbol. 
     The data is acquired from stooq.pl and stooq codes should be used. There 
@@ -64,6 +87,7 @@ def download_historical_prices(symbol):
     return px_series
 
 
+    
 
 
 
