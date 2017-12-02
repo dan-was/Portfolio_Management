@@ -87,7 +87,7 @@ def download_historical_prices(symbol):
     return px_series
 
 def download_historical_fin_data(symbol, period ='ann'):
-    """Downloads data from financial statements. Can be set to annual (default)
+    """Downloads financial results/data from bankier.pl. Can be set to annual (default)
     or quartetly ('q') period. Returns a dataframe with all acquired fin data"""
     
     def replace_multi(text, dic):
@@ -184,3 +184,88 @@ def download_historical_fin_data(symbol, period ='ann'):
             fin_data_df[k] = pd.Series(fin_data[k])
     # return the dataframe with downloaded and transformed financial data
     return fin_data_df
+
+# article functions:
+
+def find_last_news_page_bankier(symbol):
+    """Returns last page of bankier's article news list"""
+    url = "https://www.bankier.pl/gielda/notowania/akcje/{}/wiadomosci/1".format(symbol)
+    req = requests.get(url)
+    soup = BeautifulSoup(req.content, "lxml")
+    # search for class that contains page numbers after the separator
+    pages = soup.find_all("a", {"class": "numeral btn"})
+    # if nothing found it means there is no separator (less than 6 pages) and
+    # antoher class (with a space at the end) has to be used
+    if len(pages) == 0:
+        pages = soup.find_all("a", {"class": "numeral btn "})
+        # if nothing found again it means there's only one page
+        if len(pages) == 0:
+            return 1
+        else:
+            # if there are some matches return the last page found
+            return int(pages[-1].text)
+    # there is a page list separator return the last match
+    else:
+        return int(pages[-1].text)
+    
+def download_bankier_article(url):
+    req = requests.get(url)
+    soup = BeautifulSoup(req.content, "lxml")
+    # search for article content
+    article_content_raw = soup.find_all("div", {"id": "articleContent"})[0]
+    # find all paragraphs in the article body
+    article_paragraphs = article_content_raw.find_all('p')
+    # empty list to store found paragraphs
+    paragraphs_list = []
+    for item in article_paragraphs:
+        paragraphs_list.append(item.getText())
+    # transform list of paragrapsh into one string
+    article = " ".join(paragraphs_list).strip()
+    # remove all newlines and unnecessary spaces, leave plain text with single
+    # spaces
+    article_formatted = " ".join(article.split())
+    # find entry date of the article
+    entry_date_raw = soup.find_all("time", {"class": "entry-date"})
+    entry_date = entry_date_raw[0].getText()
+    # return a list of entry date, article content and url
+    return [entry_date, article_formatted, url]
+
+def download_all_bankier_articles(symbol):
+    """For a given symbol downloads all available articles related to company
+    with a timestamp"""
+    # determine how many pages of articles are available for the given symbol
+    n_pages = find_last_news_page_bankier(symbol)
+    # create an empty set to store article links
+    article_links = set()
+    # downloand article links from every page
+    for page in range(1,n_pages):
+        # create request url
+        url = "https://www.bankier.pl/gielda/notowania/akcje/{}/wiadomosci/{}".format(symbol,page)
+        # send http request
+        req = requests.get(url)
+        # format the response usnign BS
+        soup = BeautifulSoup(req.content, "lxml")
+        # create a list of articles/links
+        article_list = soup.find_all("span", {"class": "entry-title"})
+        for item in article_list:
+            try:
+                for link in item.find_all('a'):
+                    # append article link to the set
+                   article_links.add('https://www.bankier.pl{}'.format(str(link.get("href"))))
+            except:
+                continue
+    # transform links set to a list
+    article_links = list(article_links)
+    # create an empty list to store article's content
+    articles = []
+    n = 0 # counter
+    for link in article_links:
+        # download article and add it to the list
+        articles.append(download_bankier_article(link))
+        # increment number of downloaded and display progress
+        n += 1
+        print(n, "of", len(article_links), "downloaded")
+    # filter out articles withour any content
+    articles_filtered = [article for article in articles if article[1] != ""]
+    # return list of downloaded articles
+    return articles_filtered
