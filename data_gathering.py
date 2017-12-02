@@ -97,11 +97,11 @@ def download_historical_fin_data(symbol, period ='ann'):
         return text
     
     # dict with polish anmes for the period types (to be included in the url)
-    periods = {"ann": "roczny", "q": "kwartalny"}
+    period_dict = {"ann": "roczny", "q": "kwartalny"}
     def find_last_page_number(symbol, period):
         """Determines how many pages of financial data there are"""
         # create an url to the first page of fin data of given company
-        url = "http://www.bankier.pl/gielda/notowania/akcje/{}/wyniki-finansowe/skonsolidowany/{}/standardowy/1".format(symbol, periods[period])
+        url = "http://www.bankier.pl/gielda/notowania/akcje/{}/wyniki-finansowe/skonsolidowany/{}/standardowy/1".format(symbol, period_dict[period])
         # send an http request
         req = requests.get(url)
         # format the response usnign BS
@@ -135,7 +135,7 @@ def download_historical_fin_data(symbol, period ='ann'):
     # loop through all pages and check one more
     for site in range(1,last_page+1):
         # create an url that points to the fin data
-        url = "http://www.bankier.pl/gielda/notowania/akcje/{}/wyniki-finansowe/skonsolidowany/{}/standardowy/{}".format(symbol,periods[period], site)
+        url = "http://www.bankier.pl/gielda/notowania/akcje/{}/wyniki-finansowe/skonsolidowany/{}/standardowy/{}".format(symbol,period_dict[period], site)
         # send an http request    
         req = requests.get(url)
         # format the response usnign BS
