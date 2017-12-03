@@ -415,3 +415,41 @@ def download_bankier_articles(symbol, n_pages='all'):
     articles_filtered = [article for article in articles if article[1] != ""]
     # return list of downloaded articles
     return articles_filtered
+
+# forum functions
+    
+def download_stockwatch_forum_symbols(n_pages = 15):
+    """Downloads list of symbols and forum numbers from stockwatch forum. Data
+    can be then used to download forum content"""
+    # create empty list to store (froum_number, stock_symbol) pairs
+    stockwatch_symbols_list = []
+    # iterate through pages to find links and extract data
+    for page in range(1,n_pages+1):
+        # create url
+        url = 'https://www.stockwatch.pl/forum/tematy-8p{}_Spolki-od-A-do-Z--GPW.aspx'.format(page)
+        # send http request
+        req = requests.get(url)
+        # format the response usnign BS
+        soup = BeautifulSoup(req.content, "lxml")
+        # search for table that contains forum's content
+        threads_table = soup.find("table", {"class": "threadList"})
+        # find all rows (threads) on the downloaded page
+        threads_raw_1 = threads_table.find_all("tr", {"class": "post"})
+        threads_raw_2 = threads_table.find_all("tr", {"class": "post_alt"})
+        # create an empty list to store thread urls 
+        thread_urls = []
+        for item in threads_raw_1:
+            # append all found urls
+            thread_urls.append([item['href'] for item in item.find_all("a")])
+        for item in threads_raw_2:
+            # append all found urls
+            thread_urls.append([item['href'] for item in item.find_all("a")])
+        # for each except the first one which is 'Forums policy'
+        for item in thread_urls[1:]:
+            # extract forum number and stock name/symbol from the link
+            step1 = item[1].split("-")
+            step2 = step1[1].split(".")
+            step3 = step2[0].split("_")
+            # append the number-symbol pair to the list
+            stockwatch_symbols_list.append(step3)
+    return stockwatch_symbols_list
