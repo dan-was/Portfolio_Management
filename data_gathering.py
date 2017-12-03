@@ -452,4 +452,9 @@ def download_stockwatch_forum_symbols(n_pages = 15):
             step3 = step2[0].split("_")
             # append the number-symbol pair to the list
             stockwatch_symbols_list.append(step3)
-    return stockwatch_symbols_list
+    # create dictionary to store data
+    stockwatch_symbols_dict = {}
+    # assing forum number (value) to forum (stock) name (key)
+    for item in stockwatch_symbols_list:
+        stockwatch_symbols_dict[item[1]] = item[0]
+    return stockwatch_symbols_dict
