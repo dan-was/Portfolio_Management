@@ -361,11 +361,15 @@ def download_bankier_article(url):
     # remove all newlines and unnecessary spaces, leave plain text with single
     # spaces
     article_formatted = " ".join(article.split())
+    # find articles header
+    article_header_raw = soup.find_all("h1", {"class": "entry-title"})[0]
+    # extract header text
+    article_header = article_header_raw.text
     # find entry date of the article
     entry_date_raw = soup.find_all("time", {"class": "entry-date"})
     entry_date = entry_date_raw[0].getText()
     # return a list of entry date, article content and url
-    return [entry_date, article_formatted, url]
+    return [entry_date, article_header, article_formatted, url]
 
 def download_bankier_articles(symbol, n_pages='all'):
     """For a given symbol downloads available articles related to company with
