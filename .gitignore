@@ -3,3 +3,4 @@ tests.py
 under_dev.py
 .ipynb_checkpoints
 .spyproject
+__pycache__
