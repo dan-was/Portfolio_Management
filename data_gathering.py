@@ -367,15 +367,20 @@ def download_bankier_article(url):
     # return a list of entry date, article content and url
     return [entry_date, article_formatted, url]
 
-def download_all_bankier_articles(symbol):
-    """For a given symbol downloads all available articles related to company
-    with a timestamp"""
-    # determine how many pages of articles are available for the given symbol
-    n_pages = find_last_news_page_bankier(symbol)
+def download_bankier_articles(symbol, n_pages='all'):
+    """For a given symbol downloads available articles related to company with
+    a timestamp.
+    
+    Params:
+        n_pages: int or str: "all"
+    """
+    if n_pages == "all":
+        # determine how many pages of articles are available for the given symbol
+        n_pages = find_last_news_page_bankier(symbol)
     # create an empty set to store article links
     article_links = set()
     # downloand article links from every page
-    for page in range(1,n_pages):
+    for page in range(1,n_pages+1):
         # create request url
         url = "https://www.bankier.pl/gielda/notowania/akcje/{}/wiadomosci/{}".format(symbol,page)
         # send http request
