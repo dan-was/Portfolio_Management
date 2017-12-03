@@ -7,8 +7,8 @@ Created on Sun Dec  3 13:25:52 2017
 
 def chng_date(date, simple = False):
     months = {"sty": "01", "lut": "02", "mar": "03", "kwi": "04", "maj": "05", 
-          "cze": "06", "lip": "07", "sie": "08", "wrz": "09", "paź": "09",
-          "lis": "10", "gru": "12"}
+          "cze": "06", "lip": "07", "sie": "08", "wrz": "09", "paź": "10",
+          "lis": "11", "gru": "12"}
     
     if not simple:
         date = date.split()

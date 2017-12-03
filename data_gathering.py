@@ -13,6 +13,8 @@ import pandas as pd
 from datetime import datetime
 from data_formatting import chng_date
 
+# price/fin_data functions:
+
 def download_stooq_symbols(n_pages = 10):
     """The function downloads and returns symbols(tickers) and anmes of Polish
     stocks from stooq.pl, which can be used to acquire historical stock prices
@@ -187,6 +189,139 @@ def download_historical_fin_data(symbol, period ='ann'):
     # return the dataframe with downloaded and transformed financial data
     return fin_data_df
 
+def download_last_40_prices(symbol):
+    """Downloads up to 40 most recent daily OHLC prices. Requires stooq symbol
+    As opposed to downloading all historical prices from csv file there is no
+    limit for this as it's scraing data from the website"""
+    ## create request url
+    url = "https://stooq.pl/q/d/?s={}".format(symbol)
+    # send http request
+    req = requests.get(url)
+    # format the response usnign BS
+    soup = BeautifulSoup(req.content, "lxml")
+    # find the rable that contains price data
+    price_table = soup.find("table", {"class": "fth1"})
+    # find table body
+    table_body = price_table.find('tbody')
+    # find all rows in table
+    rows = table_body.find_all('tr')
+    # create empty list to store data    
+    data = []
+    for row in rows:
+        # find all elements (columns) in a row
+        cols = row.find_all('td')
+        # create a list of found elements
+        cols = [element.text.strip() for element in cols]
+        # append a row (vector) of data to data list
+        data.append([element for element in cols])
+    # create an empty list for formatted data
+    formatted_data = []
+    for row in data:
+        # change date format
+        date = chng_date(row[1])
+        # change prices and volume to floats
+        open_ = float(row[2])
+        high = float(row[3])
+        low = float(row[4])
+        close = float(row[5])
+        volume = float(row[6].replace(",", ""))
+        # create a vector of formatted prices
+        px_vector = [date, open_, high, low, close, volume]
+        # append vector to formatted data list
+        formatted_data.append(px_vector)
+    # if 40 prices downloaded transform the list to a dataframe 
+    if len(formatted_data) == 40:
+        df_new = pd.DataFrame(formatted_data)
+        # set column names
+        df_new.columns = ["Date", "Open", "High", "Low", "Close", "Volume"]
+        # set date as index
+        df_new.set_index("Date", inplace = True)
+        # transform date to datetime object
+        df_new.index = pd.to_datetime(df_new.index, yearfirst = True)
+        return df_new
+    else:
+        print("New data too short, potential error!")
+
+def download_last_price(symbol):
+    """Downloads the last session's OHLC prices and volume from stooq. Requires
+    stooq symbol"""
+    # create request url
+    url = "https://stooq.pl/q/g/?s={}".format(symbol)
+    # send http request
+    req = requests.get(url)
+    # format the response usnign BS
+    soup = BeautifulSoup(req.content, "lxml")
+    # find all tables in on the website
+    site_tables = soup.find_all("table")
+    # create a list of tables
+    all_tables = []
+    for item in site_tables:
+        all_tables.append(item)
+    # find table with price data
+    for n, table in enumerate(all_tables):
+        # if table starts with "Kurs" it contains the price data
+        if table.text.startswith("Kurs"):
+            pos = n
+            break
+    try:
+        # select first and second tabel with price data
+        data_tables = [all_tables[pos], all_tables[pos+1]]
+        # create an empty list to store data from tables
+        all_table_content = []
+        # for each table of the two
+        for table in data_tables:
+            # find table body
+            table_body = table.find('tbody')
+            # find all rows in the table body
+            rows = table_body.find_all('tr')
+            # create an ampty list for data from tables
+            data = []
+            # for each row in row list
+            for row in rows:
+                # find row columns
+                cols = row.find_all('td')
+                # create a list of all elements of a row
+                cols = [element.text.strip() for element in cols]
+                data.append([element for element in cols])
+            # add to all content
+            all_table_content.append(data)
+        # extract days and month - a list of two elements
+        date = all_table_content[0][1][1].split(",")[0].split()
+        # add current year as third element
+        date.append(str(datetime.today().year))
+        # change month name to number
+        date = [date[2], chng_date(date[1], True), date[0]]
+        # join with dashes as separators - create a date string
+        date = "-".join(date)
+        # find open price
+        open_ = float(all_table_content[0][2][1])
+        # find high pirce
+        high = float(all_table_content[1][1][1].split("/")[0])
+        # find low price
+        low = float(all_table_content[1][1][1].split("/")[1])
+        # find close price and transform format if necessary (if ccy units present)
+        try:
+            close = float(all_table_content[0][0][1])
+        except ValueError:
+            # remove ccy sing
+            close = close = all_table_content[0][0][1].replace(u'\xa0', u' ')
+            close = close.split(" ")
+            close =  float(close[0])
+        # find volume
+        volume = float(all_table_content[0][4][1].replace(",", ""))
+        # create a vector of data
+        px_row = [date, open_, high, low, close, volume]
+        # transform the vector to a dataframe
+        df_new = pd.DataFrame([px_row], columns =["Date", "Open", "High", 
+                                                  "Low", "Close", "Volume"])
+        # set date as index
+        df_new.set_index("Date", inplace = True)
+        # change index's type to datetime
+        df_new.index = pd.to_datetime(df_new.index, yearfirst = True)
+        return df_new
+    except:
+        print("Unspecifier error - check yor internet connection or if ticker is valid")
+
 # article functions:
 
 def find_last_news_page_bankier(symbol):
@@ -271,83 +406,3 @@ def download_all_bankier_articles(symbol):
     articles_filtered = [article for article in articles if article[1] != ""]
     # return list of downloaded articles
     return articles_filtered
-
-def download_last_price(symbol):
-    """Downloads the last session's OHLC prices and volume from stooq. Requires
-    stooq symbol"""
-    # create request url
-    url = "https://stooq.pl/q/g/?s={}".format(symbol)
-    # send http request
-    req = requests.get(url)
-    # format the response usnign BS
-    soup = BeautifulSoup(req.content, "lxml")
-    # find all tables in on the website
-    site_tables = soup.find_all("table")
-    # create a list of tables
-    all_tables = []
-    for item in site_tables:
-        all_tables.append(item)
-    # find table with price data
-    for n, table in enumerate(all_tables):
-        # if table starts with "Kurs" it contains the price data
-        if table.text.startswith("Kurs"):
-            pos = n
-            break
-    try:
-        # select first and second tabel with price data
-        data_tables = [all_tables[pos], all_tables[pos+1]]
-        # create an empty list to store data from tables
-        all_table_content = []
-        # for each table of the two
-        for table in data_tables:
-            # find table body
-            table_body = table.find('tbody')
-            # find all rows in the table body
-            rows = table_body.find_all('tr')
-            # create an ampty list for data from tables
-            data = []
-            # for each row in row list
-            for row in rows:
-                # find row columns
-                cols = row.find_all('td')
-                # create a list of all elements of a row
-                cols = [element.text.strip() for element in cols]
-                data.append([element for element in cols])
-            # add to all content
-            all_table_content.append(data)
-        # extract days and month - a list of two elements
-        date = all_table_content[0][1][1].split(",")[0].split()
-        # add current year as third element
-        date.append(str(datetime.today().year))
-        # change month name to number
-        date = [date[2], chng_date(date[1], True), date[0]]
-        # join with dashes as separators - create a date string
-        date = "-".join(date)
-        # find open price
-        open_ = float(all_table_content[0][2][1])
-        # find high pirce
-        high = float(all_table_content[1][1][1].split("/")[0])
-        # find low price
-        low = float(all_table_content[1][1][1].split("/")[1])
-        # find close price and transform format if necessary (if ccy units present)
-        try:
-            close = float(all_table_content[0][0][1])
-        except ValueError:
-            # remove ccy sing
-            close = close = all_table_content[0][0][1].replace(u'\xa0', u' ')
-            close = close.split(" ")
-            close =  float(close[0])
-        # find volume
-        volume = float(all_table_content[0][4][1].replace(",", ""))
-        # create a vector of data
-        px_row = [date, open_, high, low, close, volume]
-        # transform the vector to a dataframe
-        df_new = pd.DataFrame([px_row], columns =["Date", "Open", "High", 
-                                                  "Low", "Close", "Volume"])
-        # set date as index
-        df_new.set_index("Date", inplace = True)
-        # change index's type to datetime
-        df_new.index = pd.to_datetime(df_new.index, yearfirst = True)
-        return df_new
-    except:
-        print("Unspecifier error - check yor internet connection or if ticker is valid")
