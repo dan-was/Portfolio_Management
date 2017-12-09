@@ -458,3 +458,91 @@ def download_stockwatch_forum_symbols(n_pages = 15):
     for item in stockwatch_symbols_list:
         stockwatch_symbols_dict[item[1]] = item[0]
     return stockwatch_symbols_dict
+
+def download_stooq_forum_posts(stock, thread_num=-1, page_range='all'):
+    """Function downloads posts from stockwatch forum related to given stock.
+    if thread number is not given (default value -1) it will be found using
+    "download_stockwatch_forum_symbols" function but it may take up to two
+    minutes. Page_range argument may be left with default 'all' value. It will
+    then download all available posts. Also, a tuple of (first,last) page can
+    be given.
+    Params:
+        page_range: str, int, tuple:
+            if str == 'all' - downloads all pages
+            if tuple of ints == (first, last) - downloads pages from given range
+    """
+    # dictionray with numerical equivalents of Polish month names
+    months = {'stycznia': '01', 'lutego': '02', 'marca': '03', 'kwietnia': '04',
+              'maja': '05', 'czerwca': '06', 'lipca': '07', 'sierpnia': '08',
+              'września': '09', 'października': '10', 'listopada': '11',
+              'grudnia': '12'}
+    # if the number thread number (included in forum's url) is not given it's
+    # determined using download_stockwatch_forum_symbols function
+    if thread_num == -1:
+        symbol_dict = download_stockwatch_forum_symbols()
+        thread_num = symbol_dict[stock]
+    # if page range equals all set range big enough to include all pages
+    if type(page_range) == str:
+        if page_range == 'all':
+            first_page = 1
+            last_page = 1000
+    # if a tuple of values (start,end) is given setup range accordingly
+    elif type(page_range) == tuple:
+        first_page = page_range[0]
+        last_page = page_range[1]
+    # setup a condition to stop returning the values twice
+    completed = False
+    # empty list to store posts before formatting
+    all_posts_raw = []
+    # empty list to store formatted post
+    all_posts = []
+    for page in range(first_page,last_page+1):
+        # create url
+        url = 'https://www.stockwatch.pl/forum/wpisy-{}p{}_{}.aspx'.format(thread_num,
+                                                     page, stock)
+        # send http request
+        req = requests.get(url)
+        # format the response usnign BS
+        soup = BeautifulSoup(req.content, "lxml")
+        # find posts content
+        posts_content = soup.find_all("div", {"class": "postdiv"})
+        # find posts send dates
+        posts_dates = soup.find_all("div", {"class": "l"})
+        # create a list of posts
+        posts_raw = [item.text.strip() for item in posts_content]
+        # add each post to the list of already downloaded posts so that when a 
+        # post appears for the second time the loop stops and returns the result
+        for item in posts_raw:
+            if item not in all_posts_raw:
+                all_posts_raw.append(item)
+            else:
+                return all_posts
+                completed = True
+                break
+        # create a list of dates
+        dates_raw = [item.text[57:90].strip() for item in posts_dates
+                     if item.text[57:90] != ""]
+        # split the elements in each date
+        dates_split = [item.split() for item in dates_raw]
+        # create a list of lists of day-month-year withc month changed to num
+        dates_num = [[item[0], months[item[1]], item[2]] for item in dates_split]
+        # join the elements of each date into one string
+        dates_str = ['-'.join(item) for item in dates_num]
+        # empty list for dates with hours
+        dates_hr_raw = []
+        # for each element in dates split create a list of [date, hour]
+        for i in range(len(dates_split)):
+            dates_hr_raw.append([dates_str[i], dates_split[i][3]])
+        # join the date and hour into one string with a space
+        dates_hr = [" ".join(item) for item in dates_hr_raw]
+        # convert to datetime object
+        dates_datetime = [pd.to_datetime(item, dayfirst=True) for item in dates_hr]
+        # create [date, post] pairs
+        posts_list = list(zip(dates_datetime, posts_raw))
+        # add all new posts to all_posts list
+        for item in posts_list:
+            if item not in all_posts:
+                all_posts.append(item)
+    # return the list of posts if it hasn't been done before
+    if not completed:
+        return all_posts
