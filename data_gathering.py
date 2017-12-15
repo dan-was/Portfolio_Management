@@ -50,11 +50,11 @@ def download_stooq_symbols(n_pages = 10):
     # financial data sources)
     return symbol_list
 
-def download_bankier_symbols():
+def download_bankier_symbols(index=''):
     """Downloads and returns stock names available on bankier.pl. Can be used
     to downloads historical financial data"""
     # download page's content
-    url = "http://www.bankier.pl/gielda/notowania/akcje?index="
+    url = "http://www.bankier.pl/gielda/notowania/akcje?index={}".format(index)
     # send an http request
     req = requests.get(url)
     # format the response usnign BS

@@ -1,5 +1,6 @@
 .spyproject
 tests.py
+tests2.py
 under_dev.py
 .ipynb_checkpoints
 .spyproject
