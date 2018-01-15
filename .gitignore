@@ -1,7 +1,9 @@
 .spyproject
 tests.py
 tests2.py
+various.py
 under_dev.py
 .ipynb_checkpoints
 .spyproject
 __pycache__
+data
