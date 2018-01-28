@@ -7,6 +7,7 @@ Created on Sun Dec 17 00:47:33 2017
 
 import numpy as np
 from data.gathering import download_historical_prices, download_stooq_symbols
+from data.gathering import download_last_40_prices
 from data.storage import save_price_data_to_db, read_price_data_from_db
 
 class PriceSeries():
@@ -43,6 +44,24 @@ class PriceSeries():
                             break
                     except:
                         continue
+    @classmethod
+    def update_prices(cls):
+        symbols = download_stooq_symbols()
+        for symbol in symbols:
+            px = cls(symbol[0])
+            try:
+                new_data = download_last_40_prices(symbol[0])
+                rows_updated = 0
+                for date in new_data.index:
+                    if date not in px.data.index:
+                        row = new_data.xs(date)
+                        px.data.append(row)
+                        rows_updated += 1
+                px.save_data_to_db()
+            except:
+                print("Error with {}".format(symbol[0]))
+                continue
+            print('{} - added {} new prices'.format(symbol[0], rows_updated))
         
     def save_data_to_db(self):
         columns = ['open', 'high', 'low', 'close', 'volume']

@@ -218,25 +218,28 @@ def download_last_40_prices(symbol):
     # create an empty list for formatted data
     formatted_data = []
     for row in data:
-        # change date format
-        date = chng_date(row[1])
-        # change prices and volume to floats
-        open_ = float(row[2])
-        high = float(row[3])
-        low = float(row[4])
-        close = float(row[5])
-        volume = float(row[6].replace(",", ""))
-        # create a vector of formatted prices
-        px_vector = [date, open_, high, low, close, volume]
-        # append vector to formatted data list
-        formatted_data.append(px_vector)
+        try:
+            # change date format
+            date = chng_date(row[1])
+            # change prices and volume to floats
+            open_ = float(row[2])
+            high = float(row[3])
+            low = float(row[4])
+            close = float(row[5])
+            volume = float(row[6].replace(",", ""))
+            # create a vector of formatted prices
+            px_vector = [date, open_, high, low, close, volume]
+            # append vector to formatted data list
+            formatted_data.append(px_vector)
+        except:
+            continue
     # if 40 prices downloaded transform the list to a dataframe 
     if len(formatted_data) == 40:
         df_new = pd.DataFrame(formatted_data)
         # set column names
-        df_new.columns = ["Date", "Open", "High", "Low", "Close", "Volume"]
+        df_new.columns = ["date", "open", "high", "low", "close", "volume"]
         # set date as index
-        df_new.set_index("Date", inplace = True)
+        df_new.set_index("date", inplace = True)
         # transform date to datetime object
         df_new.index = pd.to_datetime(df_new.index, yearfirst = True)
         return df_new
@@ -313,10 +316,10 @@ def download_last_price(symbol):
         # create a vector of data
         px_row = [date, open_, high, low, close, volume]
         # transform the vector to a dataframe
-        df_new = pd.DataFrame([px_row], columns =["Date", "Open", "High", 
-                                                  "Low", "Close", "Volume"])
+        df_new = pd.DataFrame([px_row], columns =["date", "open", "high", 
+                                                  "low", "close", "volume"])
         # set date as index
-        df_new.set_index("Date", inplace = True)
+        df_new.set_index("date", inplace = True)
         # change index's type to datetime
         df_new.index = pd.to_datetime(df_new.index, yearfirst = True)
         return df_new
