@@ -12,7 +12,7 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 from datetime import datetime
-from data_formatting import chng_date
+from data.formatting import chng_date
 
 # price/fin_data functions:
 

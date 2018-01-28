@@ -6,20 +6,47 @@ Created on Sun Dec 17 00:47:33 2017
 """
 
 import numpy as np
-import pandas as pd
-from data_gathering import download_historical_prices
+from data.gathering import download_historical_prices, download_stooq_symbols
+from data.storage import save_price_data_to_db, read_price_data_from_db
 
 class PriceSeries():
     """Class that stores historical price data with various methods required
     in price analysis"""
     
-    def __init__(self, stooq_symbol, OHLCV_df=None):
+    def __init__(self, stooq_symbol):
         self.symbol = stooq_symbol
-        if isinstance(OHLCV_df, pd.core.frame.DataFrame):
-            self.data = OHLCV_df.copy()
-        else:
+        try:
+            self.data = read_price_data_from_db(self.symbol)
+        except:
             self.data = download_historical_prices(self.symbol)
+            self.save_data_to_db()
         self.add_returns()
+        
+    def download_prices_of_all_stocks(self):
+        if not hasattr(self, 'downloaded'):
+            self.downloaded = []
+        if not hasattr(self, 'symbols'):
+            self.symbols = download_stooq_symbols()
+        limit = False
+        for symbol in self.symbols:
+            if not limit:
+                if symbol[0] not in self.downloaded:
+                    try:
+                        data = download_historical_prices(symbol[0])
+                        if len(data)>0:    
+                            save_price_data_to_db(symbol[0], data)
+                            print("Downloaded {}".format(symbol))
+                            self.downloaded.append(symbol[0])
+                        else:
+                            print("Limit reached, change IP and run again")
+                            limit = True
+                            break
+                    except:
+                        continue
+        
+    def save_data_to_db(self):
+        columns = ['open', 'high', 'low', 'close', 'volume']
+        save_price_data_to_db(self.symbol, self.data[columns])
         
     def add_returns(self):
         self.data['log_return'] = np.log(self.data['close'].pct_change()+1)

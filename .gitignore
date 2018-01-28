@@ -8,3 +8,4 @@ under_dev.py
 __pycache__
 data
 test3-optimization.py
+price_data.db
