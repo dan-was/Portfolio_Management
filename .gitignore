@@ -9,3 +9,5 @@ __pycache__
 data
 test3-optimization.py
 price_data.db
+fin_data.db
+portfolio.py
