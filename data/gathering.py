@@ -187,6 +187,8 @@ def download_historical_fin_data(symbol, period ='ann'):
         fin_data_df = pd.DataFrame()
         for k, v in fin_data.items():
             fin_data_df[k] = pd.Series(fin_data[k])
+    # set index name
+    fin_data_df.index.rename('date', inplace=True)
     # return the dataframe with downloaded and transformed financial data
     return fin_data_df
 

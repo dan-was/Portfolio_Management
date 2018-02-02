@@ -24,21 +24,33 @@ class PriceSeries():
         self.add_returns()
         
     def download_prices_of_all_stocks(self):
+        """Downloads list of stock symbols from stooq.pl and iterates through
+        it to download historical OHLCV data and store it in a database file.
+        Can be run few times on the same instance to continue downloading after
+        the limit of downloads is reached. Method is relatively slow and can be
+        used to recreate the full price database from scratch"""
+        # check if downloaded and symbols lists are already initialized
         if not hasattr(self, 'downloaded'):
             self.downloaded = []
         if not hasattr(self, 'symbols'):
+            # download available stooq symbols
             self.symbols = download_stooq_symbols()
+        # set a variable that stops iterations when limit is reached
         limit = False
         for symbol in self.symbols:
             if not limit:
                 if symbol[0] not in self.downloaded:
                     try:
+                        # download prices
                         data = download_historical_prices(symbol[0])
+                        # check if response contains any data
                         if len(data)>0:    
+                            # save to db, print status and add to downloaded list
                             save_price_data_to_db(symbol[0], data)
                             print("Downloaded {}".format(symbol))
                             self.downloaded.append(symbol[0])
                         else:
+                            # stop downloading when limit is reached
                             print("Limit reached, change IP and run again")
                             limit = True
                             break
@@ -46,6 +58,8 @@ class PriceSeries():
                         continue
     @classmethod
     def update_prices(cls):
+        """Method downloads up to 40 most recent prices (OHLCV) and updates the
+        database. Can be subject to limits (around 150 site launches per day)"""
         symbols = download_stooq_symbols()
         for symbol in symbols:
             px = cls(symbol[0])
@@ -74,9 +88,9 @@ class PriceSeries():
     def add_monthly_returns(self):
         self.monthly_returns = self.data['log_return'].resample('MS').sum()
 
-    def add_rolling_avg(self, window=21):
-        col_name = 'rolling_avg_{}'.format(window)
-        self.data[col_name] = self.data['close'].rolling(window).mean()
+    def add_rolling_avg(self, column='close', window=21):
+        col_name = 'r_avg_{}_{}'.format(column, window)
+        self.data[col_name] = self.data[column].rolling(window).mean()
         self.data.dropna()
     
     def add_rolling_std(self, window=21, annualized=True, weighted=False, decay='lin'):
