@@ -7,6 +7,7 @@ Created on Sun Dec 17 00:47:33 2017
 
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from data.gathering import download_historical_prices, download_stooq_symbols
 from data.gathering import download_last_40_prices, download_last_price
 from data.storage import save_price_data_to_db, read_price_data_from_db
@@ -167,16 +168,16 @@ class PriceSeries():
         summ.set_value('ret_1d', ret.tail(1)[0])
         summ.set_value('ret_5d', roll_return(ret, 5))
         summ.set_value('ret_21d', roll_return(ret, 21))
-        summ.set_value('ret_255d', roll_return(ret, 255))
-        summ.set_value('ret_3y', roll_return(ret, 765))
-        summ.set_value('ret_5y', roll_return(ret, 1275))
+        summ.set_value('ret_252d', roll_return(ret, 252))
+        summ.set_value('ret_3y', roll_return(ret, 252*2))
+        summ.set_value('ret_5y', roll_return(ret, 252*3))
         # standard dev
         summ.set_value('std_5d', roll_std(ret, 5))
         summ.set_value('std_21d', roll_std(ret, 21))
-        summ.set_value('std_255d', roll_std(ret, 255))
-        summ.set_value('std_255d_ann', roll_std(ret, 255)*np.sqrt(255))
+        summ.set_value('std_252d', roll_std(ret, 252))
+        summ.set_value('std_252d_ann', roll_std(ret, 252)*np.sqrt(252))
         # risk/return profile
-        summ.set_value('return/risk_1y', summ['ret_255d']/summ['std_255d_ann'])
+        summ.set_value('return/risk_1y', summ['ret_252d']/summ['std_252d_ann'])
         return summ
         
 
