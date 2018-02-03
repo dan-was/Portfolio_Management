@@ -5,12 +5,16 @@ Created on Sun Dec 17 00:47:33 2017
 @author: Daniel
 """
 
-import numpy as np
-import pandas as pd
-import seaborn as sns
+
 from data.gathering import download_historical_prices, download_stooq_symbols
 from data.gathering import download_last_40_prices, download_last_price
 from data.storage import save_price_data_to_db, read_price_data_from_db
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+sns.set()
+
 
 class PriceSeries():
     """Class that stores historical price data with various methods required
@@ -179,8 +183,115 @@ class PriceSeries():
         # risk/return profile
         summ.set_value('return/risk_1y', summ['ret_252d']/summ['std_252d_ann'])
         return summ
+
+
+class PortfolioOptimizer():
+    """Class that allows to construct and optimize a portfolio of stocks"""
+    
+    def __init__(self, name):
+       self.name = name
+     
+    def __str__(self):
+        return "Portfolio {} of: {}".format(self.name, ", ".join(self.symbols))
+       
+    def add_stocks(self, stock_symbols):
+        self.symbols = stock_symbols
+        self.stocks = [PriceSeries(symbol) for symbol in self.symbols]
         
+    def summary(self):
+        summ = pd.DataFrame()
+        for stock in self.stocks:
+            summ[stock.symbol] = stock.summary()
+        return summ
+    
+    def correlation(self, months=36, plot=False):
+        price_matrix = pd.DataFrame()
+        for stock in self.stocks:
+            stock.add_monthly_returns()
+            price_matrix[stock.symbol] = stock.monthly_returns.tail(months)
+        if plot:
+            sns.heatmap(price_matrix.corr())
+        return price_matrix.corr()
+    
+    def generate_rand_portfolios(self, n_portfolios = 10000, months_of_data = 36,
+                                 only_plot=False, figsize=(12,6)):
+        """Function takes a list of stock symbols as input and generates a given number
+        of randomly weighted protfolios based of monthly price data from a given period.
+        Function displays a scatterplot of generated portfolios' risk/return characteristics
+        as well as points the portfolio with the best expected return to expected risk ratio"""
+        # Merge monthly returns from the given period in one data frame
+        df = pd.DataFrame()
+        for price_series in self.stocks:
+            price_series.add_monthly_returns()
+            df[price_series.symbol] = price_series.monthly_returns.tail(months_of_data)
+        
+        def random_weights(n):
+            """Function returns an array of randomly generated weights that sum up to 1"""
+            nums = np.random.rand(n)
+            return nums/sum(nums)
+        
+        def create_rand_portfolio(df):
+            """Function calculates mean return and standard deviation of a randomly
+            generated portfolio of given stocks"""
+            e_r = np.asmatrix(np.mean(df.T, axis=1))          # average returns
+            w = np.asmatrix(random_weights(df.T.shape[0]))    # randomly generated weights
+            C = np.asmatrix(np.cov(np.array(df).T))           # variance-covariance matrix
+            # calculate the dot product of expected weights and mean returns
+            # expected portfolio return:
+            mu = np.dot(w, e_r.T)
+            # clalculate the standard deviation of the portfolio
+            std = np.sqrt(w * C * w.T)
+            # rerun the random generation if the risk is too high to refuce outliers
+            if std > 0.6:
+                return create_rand_portfolio(df)
+            #return the expected return, standard deviation and transposed vector of weights
+            return mu, std, w.T
+        
+        # generate given number of random portfolios
+        means, stds, w = np.column_stack([create_rand_portfolio(df) for _ in range(n_portfolios)])
+        # create a list of return/risk ratios for all portfolios
+        rr = []
+        for m, s, w in zip(means, stds, w):
+            rr.append([m/s, w, m, s])
+        # find the portfolio with the best return/risk ratio
+        best = max(rr, key=lambda item : item[0])
+        # use the return/risk ratio to determine data points colors on the plot   
+        colors = [np.asscalar(item[0]) for item in rr]
+        #create a scatterplot
+        plt.figure(figsize=figsize)
+        plt.scatter(stds, means, alpha = 0.5, c = colors)
+        plt.xlabel('Standard deviation')
+        plt.ylabel('Expected return')
+        # add a side bar with return/risk levels legend
+        cbar = plt.colorbar()
+        cbar.ax.get_yaxis().labelpad = 15
+        cbar.ax.set_ylabel('E(r)/std', rotation=270)
+        
+        def desc(ex, weights, symbols):
+            """Function creates a description of the expected return and weights of a
+            portfolio"""
+            string = "E(r): {}%, Portfolio: ".format("%.2f" % (np.asscalar(ex)*100))
+            for n, w in enumerate(weights):
+                string += "{}: {}%, ".format(symbols[n], "%.2f" % (np.asscalar(w)*100))
+            return string
+        
+        # create a description of the most efficient portfolio
+        description = desc(best[2], best[1], df.columns)
+        # add a pointer with description to the chart
+        plt.annotate(description, xy=(best[3], best[2]), size = 10, xytext=(best[3]-0.02, best[2]+0.01),
+                    arrowprops=dict(facecolor='grey', shrink=0.05),)
+        # add a chart title
+        plt.title('Mean and standard deviation of returns of {} randomly generated portfolios'.format(n_portfolios))
+        # return weights of the best portfolio
+        if not only_plot:
+            return best[1]
 
 if __name__ == '__main__':
-    x = PriceSeries('CDR')
-    print(x.summary())
+
+    stocks = ['CDR', 'PZU', 'CCC', '11B']
+    
+    test = PortfolioOptimizer('test')
+    test.add_stocks(stocks)
+    #print(test.summary())
+    #x = test.correlation(plot=True)
+    test.generate_rand_portfolios()
