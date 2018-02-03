@@ -235,8 +235,11 @@ def download_last_40_prices(symbol):
             formatted_data.append(px_vector)
         except:
             continue
-    # if 40 prices downloaded transform the list to a dataframe 
-    if len(formatted_data) == 40:
+    # check if list contains any entries, display a warning if less than 40
+    # don't return anyhing if list is empty
+    if len(formatted_data) >= 1:   
+        if len(formatted_data) < 40:
+            print('{} less than 40 entries!'.format(symbol))
         df_new = pd.DataFrame(formatted_data)
         # set column names
         df_new.columns = ["date", "open", "high", "low", "close", "volume"]
@@ -246,7 +249,7 @@ def download_last_40_prices(symbol):
         df_new.index = pd.to_datetime(df_new.index, yearfirst = True)
         return df_new
     else:
-        print("New data too short, potential error!")
+        print("{} invalid data nothing returned".format(symbol))
 
 def download_last_price(symbol):
     """Downloads the last session's OHLC prices and volume from stooq. Requires

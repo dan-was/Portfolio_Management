@@ -6,8 +6,9 @@ Created on Sun Dec 17 00:47:33 2017
 """
 
 import numpy as np
+import pandas as pd
 from data.gathering import download_historical_prices, download_stooq_symbols
-from data.gathering import download_last_40_prices
+from data.gathering import download_last_40_prices, download_last_price
 from data.storage import save_price_data_to_db, read_price_data_from_db
 
 class PriceSeries():
@@ -57,29 +58,62 @@ class PriceSeries():
                     except:
                         continue
     @classmethod
-    def update_prices(cls):
-        """Method downloads up to 40 most recent prices (OHLCV) and updates the
-        database. Can be subject to limits (around 150 site launches per day)"""
+    def update_prices(cls, only_last = True, date_offset = 0):
+        """When only_last is True method downloads only the last price of all
+        available symbols. If set to False downloads up to 40 but can be limited
+        to ~150 downloads per day. Offset used to set last business day and 
+        prevent downloading data multiple times on weekends/non-trading days
+        For example for Saturday: date_offset=-1 (if Friday was a trading day"""
+        # list of stock symbols avaliable
         symbols = download_stooq_symbols()
+        # find the last business/trading day
+        last_b_day = pd.datetime.today()+pd.Timedelta(days=date_offset)
+        # last business day tuple
+        bd_tuple = (last_b_day.day, last_b_day.month, last_b_day.year)
+        # boolean value that stops the loop when set to false
+        keep_iterating = True
+        # number of prices failed to update
+        error_count = 0
         for symbol in symbols:
-            px = cls(symbol[0])
-            try:
-                new_data = download_last_40_prices(symbol[0])
-                rows_updated = 0
-                for date in new_data.index:
-                    if date not in px.data.index:
-                        row = new_data.xs(date)
-                        px.data.append(row)
-                        rows_updated += 1
-                px.save_data_to_db()
-            except:
-                print("Error with {}".format(symbol[0]))
-                continue
-            print('{} - added {} new prices'.format(symbol[0], rows_updated))
+            if keep_iterating:
+                # load price data from database by initializing price series object
+                px = cls(symbol[0])
+                # find last price observation day in the database
+                last_date = px.data.tail(1).index[0]
+                # if last observation date is different than last business day
+                # some data is missing so try to download it
+                if (last_date.day, last_date.month, last_date.year) != bd_tuple:
+                    try:
+                        # by default download only last price
+                        if only_last:
+                            new_data = download_last_price(symbol[0])
+                        # if last try downloading last 40 (subject to daily limits)
+                        else:
+                            new_data = download_last_40_prices(symbol[0])
+                        # count new rows added to the database
+                        rows_updated = 0
+                        # for each downloaded date
+                        for date in new_data.index:
+                            # if it's not already in the database then add it
+                            if date not in px.data.index:
+                                row = new_data.xs(date)
+                                px.data = px.data.append(row)
+                                rows_updated += 1
+                        # save updated price series to the database
+                        px.save_data_to_db(silent=True)
+                        print('{} - added {} new prices'.format(symbol[0], rows_updated))
+                    except:
+                        print("Error with {}".format(symbol[0]))
+                        error_count += 1
+                        if error_count > 5:
+                            keep_iterating = False
+                        continue
+                else:
+                    print('{} already up to date'.format(symbol[0]))
         
-    def save_data_to_db(self):
+    def save_data_to_db(self, silent=False):
         columns = ['open', 'high', 'low', 'close', 'volume']
-        save_price_data_to_db(self.symbol, self.data[columns])
+        save_price_data_to_db(self.symbol, self.data[columns], silent)
         
     def add_returns(self):
         self.data['log_return'] = np.log(self.data['close'].pct_change()+1)
