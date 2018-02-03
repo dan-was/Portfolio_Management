@@ -143,5 +143,43 @@ class PriceSeries():
     def add_weighted_rolling_avg(self, window=21):
         pass
     
+    def summary(self):
+        """Returns a summary of rolling statustics for price series"""
+        summ = pd.Series()
+        ret = self.data['log_return']
+        #returns
+        def roll_return(returns, window):
+            if len(returns)>=window:
+                return returns.tail(window).sum()
+            else:
+                return np.nan
+
+        def roll_std(returns, window):
+            if len(returns)>=window:
+                return returns.tail(window).std()
+            else:
+                return np.nan
+        #general
+        summ.set_value('first_day', pd.to_datetime(str(ret.head(1).index.values[0])).strftime('%Y-%m-%d'))
+        summ.set_value('last_day', pd.to_datetime(str(ret.tail(1).index.values[0])).strftime('%Y-%m-%d'))
+        summ.set_value('n_observations', len(ret) )
+        #returns
+        summ.set_value('ret_1d', ret.tail(1)[0])
+        summ.set_value('ret_5d', roll_return(ret, 5))
+        summ.set_value('ret_21d', roll_return(ret, 21))
+        summ.set_value('ret_255d', roll_return(ret, 255))
+        summ.set_value('ret_3y', roll_return(ret, 765))
+        summ.set_value('ret_5y', roll_return(ret, 1275))
+        # standard dev
+        summ.set_value('std_5d', roll_std(ret, 5))
+        summ.set_value('std_21d', roll_std(ret, 21))
+        summ.set_value('std_255d', roll_std(ret, 255))
+        summ.set_value('std_255d_ann', roll_std(ret, 255)*np.sqrt(255))
+        # risk/return profile
+        summ.set_value('return/risk_1y', summ['ret_255d']/summ['std_255d_ann'])
+        return summ
         
-    
+
+if __name__ == '__main__':
+    x = PriceSeries('CDR')
+    print(x.summary())
