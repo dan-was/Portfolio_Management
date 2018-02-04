@@ -122,7 +122,7 @@ class PriceSeries():
         
     def add_returns(self):
         self.data['log_return'] = np.log(self.data['close'].pct_change()+1)
-        self.data.dropna()
+        self.data.fillna(0, inplace=True)
         
     def add_monthly_returns(self):
         self.monthly_returns = self.data['log_return'].resample('MS').sum()
@@ -173,8 +173,8 @@ class PriceSeries():
         summ.set_value('ret_5d', roll_return(ret, 5))
         summ.set_value('ret_21d', roll_return(ret, 21))
         summ.set_value('ret_252d', roll_return(ret, 252))
-        summ.set_value('ret_3y', roll_return(ret, 252*2))
-        summ.set_value('ret_5y', roll_return(ret, 252*3))
+        summ.set_value('ret_3y', roll_return(ret, 252*3))
+        summ.set_value('ret_5y', roll_return(ret, 252*5))
         # standard dev
         summ.set_value('std_5d', roll_std(ret, 5))
         summ.set_value('std_21d', roll_std(ret, 21))
@@ -182,6 +182,15 @@ class PriceSeries():
         summ.set_value('std_252d_ann', roll_std(ret, 252)*np.sqrt(252))
         # risk/return profile
         summ.set_value('return/risk_1y', summ['ret_252d']/summ['std_252d_ann'])
+        # tails and shape
+        summ.set_value('skew_252d', ret.tail(252).skew())
+        summ.set_value('skew_3y', ret.tail(252*3).skew())
+        summ.set_value('kurt_252d', ret.tail(252).kurt())
+        summ.set_value('kurt_3y', ret.tail(252*3).kurt())
+        summ.set_value('max_1d_ret', max(ret))
+        summ.set_value('min_1d_ret', min(ret))
+        summ.set_value('n_above_3_sigma', len(ret[ret>(ret.mean()+3*ret.std())]))
+        summ.set_value('n_below_3_sigma', len(ret[ret<(ret.mean()-3*ret.std())]))
         return summ
 
 
@@ -194,9 +203,17 @@ class PortfolioOptimizer():
     def __str__(self):
         return "Portfolio {} of: {}".format(self.name, ", ".join(self.symbols))
        
-    def add_stocks(self, stock_symbols):
+    def add_stocks(self, stock_symbols, weights=None):
         self.symbols = stock_symbols
         self.stocks = [PriceSeries(symbol) for symbol in self.symbols]
+        self.returns = pd.DataFrame()
+        for stock in self.stocks:
+            self.returns[stock.symbol] = stock.data['log_return']
+        self.weights = weights
+        
+    def set_weights(self, weights):
+        """Provide weights of stocks in a form of a matrix/array"""
+        self.weights = weights
         
     def summary(self):
         summ = pd.DataFrame()
@@ -214,7 +231,7 @@ class PortfolioOptimizer():
         return price_matrix.corr()
     
     def generate_rand_portfolios(self, n_portfolios = 10000, months_of_data = 36,
-                                 only_plot=False, figsize=(12,6)):
+                                 plot=True, weights=False, figsize=(12,6)):
         """Function takes a list of stock symbols as input and generates a given number
         of randomly weighted protfolios based of monthly price data from a given period.
         Function displays a scatterplot of generated portfolios' risk/return characteristics
@@ -255,43 +272,62 @@ class PortfolioOptimizer():
             rr.append([m/s, w, m, s])
         # find the portfolio with the best return/risk ratio
         best = max(rr, key=lambda item : item[0])
-        # use the return/risk ratio to determine data points colors on the plot   
-        colors = [np.asscalar(item[0]) for item in rr]
-        #create a scatterplot
-        plt.figure(figsize=figsize)
-        plt.scatter(stds, means, alpha = 0.5, c = colors)
-        plt.xlabel('Standard deviation')
-        plt.ylabel('Expected return')
-        # add a side bar with return/risk levels legend
-        cbar = plt.colorbar()
-        cbar.ax.get_yaxis().labelpad = 15
-        cbar.ax.set_ylabel('E(r)/std', rotation=270)
-        
-        def desc(ex, weights, symbols):
-            """Function creates a description of the expected return and weights of a
-            portfolio"""
-            string = "E(r): {}%, Portfolio: ".format("%.2f" % (np.asscalar(ex)*100))
-            for n, w in enumerate(weights):
-                string += "{}: {}%, ".format(symbols[n], "%.2f" % (np.asscalar(w)*100))
-            return string
-        
-        # create a description of the most efficient portfolio
-        description = desc(best[2], best[1], df.columns)
-        # add a pointer with description to the chart
-        plt.annotate(description, xy=(best[3], best[2]), size = 10, xytext=(best[3]-0.02, best[2]+0.01),
-                    arrowprops=dict(facecolor='grey', shrink=0.05),)
-        # add a chart title
-        plt.title('Mean and standard deviation of returns of {} randomly generated portfolios'.format(n_portfolios))
+        if plot:
+            # use the return/risk ratio to determine data points colors on the plot
+            colors = [np.asscalar(item[0]) for item in rr]
+            #create a scatterplot
+            plt.figure(figsize=figsize)
+            plt.scatter(stds, means, alpha = 0.5, c = colors)
+            plt.xlabel('Standard deviation')
+            plt.ylabel('Expected return')
+            # add a side bar with return/risk levels legend
+            cbar = plt.colorbar()
+            cbar.ax.get_yaxis().labelpad = 15
+            cbar.ax.set_ylabel('E(r)/std', rotation=270)
+            
+            def desc(ex, weights, symbols):
+                """Function creates a description of the expected return and weights of a
+                portfolio"""
+                string = "E(r): {}%, Portfolio: ".format("%.2f" % (np.asscalar(ex)*100))
+                for n, w in enumerate(weights):
+                    string += "{}: {}%, ".format(symbols[n], "%.2f" % (np.asscalar(w)*100))
+                return string
+            
+            # create a description of the most efficient portfolio
+            description = desc(best[2], best[1], df.columns)
+            # add a pointer with description to the chart
+            plt.annotate(description, xy=(best[3], best[2]), size = 10, xytext=(best[3]-0.02, best[2]+0.01),
+                        arrowprops=dict(facecolor='grey', shrink=0.05),)
+            # add a chart title
+            plt.title('Mean and standard deviation of returns of {} randomly generated portfolios'.format(n_portfolios))
         # return weights of the best portfolio
-        if not only_plot:
+        if weights:
             return best[1]
+        
+    def plot_returns(self, window=252):
+        """Plots cumulative return of all stocks in the porflolio for a given time
+        windo"""
+        data = self.returns.tail(window).cumsum()
+        data.plot(title='Cumulative log return from last {} days'.format(window))
+        
+    def plot_indiv_roll_std(self, window=252):
+        """Displays a plot of trailing annualized standard deviation of individual
+        stocks for data available for all stocks"""
+        data = self.returns.dropna()
+        roll_std = data.rolling(252).std()*np.sqrt(252)
+        t = "Rolling annualized standard deviation od individual stocks, window = {}".format(window)
+        roll_std.plot(title=t)
 
+        
 if __name__ == '__main__':
 
-    stocks = ['CDR', 'PZU', 'CCC', '11B']
+    stocks = ['CDR', '11B', 'CCC', 'KGH']
     
     test = PortfolioOptimizer('test')
     test.add_stocks(stocks)
+    #test.plot_returns()
+    #print(test.summary())
     #print(test.summary())
     #x = test.correlation(plot=True)
-    test.generate_rand_portfolios()
+    #print(test.generate_rand_portfolios(plot=True, weights=False))
+    test.plot_indiv_roll_std()
