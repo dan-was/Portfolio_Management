@@ -19,7 +19,7 @@ sns.set()
 class PriceSeries():
     """Class that stores historical price data with various methods required
     in price analysis"""
-    
+
     def __init__(self, stooq_symbol):
         self.symbol = stooq_symbol
         try:
@@ -28,7 +28,8 @@ class PriceSeries():
             self.data = download_historical_prices(self.symbol)
             self.save_data_to_db()
         self.add_returns()
-        
+        self.add_monthly_returns()
+
     def download_prices_of_all_stocks(self):
         """Downloads list of stock symbols from stooq.pl and iterates through
         it to download historical OHLCV data and store it in a database file.
@@ -50,7 +51,7 @@ class PriceSeries():
                         # download prices
                         data = download_historical_prices(symbol[0])
                         # check if response contains any data
-                        if len(data)>0:    
+                        if len(data)>0:
                             # save to db, print status and add to downloaded list
                             save_price_data_to_db(symbol[0], data)
                             print("Downloaded {}".format(symbol))
@@ -66,7 +67,7 @@ class PriceSeries():
     def update_prices(cls, only_last = True, date_offset = 0):
         """When only_last is True method downloads only the last price of all
         available symbols. If set to False downloads up to 40 but can be limited
-        to ~150 downloads per day. Offset used to set last business day and 
+        to ~150 downloads per day. Offset used to set last business day and
         prevent downloading data multiple times on weekends/non-trading days
         For example for Saturday: date_offset=-1 (if Friday was a trading day"""
         # list of stock symbols avaliable
@@ -115,15 +116,15 @@ class PriceSeries():
                         continue
                 else:
                     print('{} already up to date'.format(symbol[0]))
-        
+
     def save_data_to_db(self, silent=False):
         columns = ['open', 'high', 'low', 'close', 'volume']
         save_price_data_to_db(self.symbol, self.data[columns], silent)
-        
+
     def add_returns(self):
         self.data['log_return'] = np.log(self.data['close'].pct_change()+1)
         self.data.fillna(0, inplace=True)
-        
+
     def add_monthly_returns(self):
         self.monthly_returns = self.data['log_return'].resample('MS').sum()
 
@@ -131,7 +132,7 @@ class PriceSeries():
         col_name = 'r_avg_{}_{}'.format(column, window)
         self.data[col_name] = self.data[column].rolling(window).mean()
         self.data.dropna()
-    
+
     def add_rolling_std(self, window=21, annualized=True, weighted=False, decay='lin'):
         if not weighted:
             col_name = 'rolling_std_{}'.format(window)
@@ -144,10 +145,10 @@ class PriceSeries():
         if annualized:
             self.data[col_name] = self.data[col_name] * np.sqrt(252)
         self.data.dropna()
-    
+
     def add_weighted_rolling_avg(self, window=21):
         pass
-    
+
     def summary(self):
         """Returns a summary of rolling statustics for price series"""
         summ = pd.Series()
@@ -196,31 +197,37 @@ class PriceSeries():
 
 class PortfolioOptimizer():
     """Class that allows to construct and optimize a portfolio of stocks"""
-    
+
     def __init__(self, name):
        self.name = name
-     
+
     def __str__(self):
         return "Portfolio {} of: {}".format(self.name, ", ".join(self.symbols))
-       
+
     def add_stocks(self, stock_symbols, weights=None):
         self.symbols = stock_symbols
         self.stocks = [PriceSeries(symbol) for symbol in self.symbols]
         self.returns = pd.DataFrame()
         for stock in self.stocks:
             self.returns[stock.symbol] = stock.data['log_return']
+        self.monthly_returns = pd.DataFrame()
+        for stock in self.stocks:
+            self.monthly_returns[stock.symbol] = stock.monthly_returns
         self.weights = weights
-        
+
     def set_weights(self, weights):
-        """Provide weights of stocks in a form of a matrix/array"""
+        """Provide weights of stocks in a form of a matrix/array
+        Format:
+            array([ 0.03295459,  0.11429331,  0.02292454,  0.22071245])
+        """
         self.weights = weights
-        
+
     def summary(self):
         summ = pd.DataFrame()
         for stock in self.stocks:
             summ[stock.symbol] = stock.summary()
         return summ
-    
+
     def correlation(self, months=36, plot=False):
         price_matrix = pd.DataFrame()
         for stock in self.stocks:
@@ -229,7 +236,7 @@ class PortfolioOptimizer():
         if plot:
             sns.heatmap(price_matrix.corr())
         return price_matrix.corr()
-    
+
     def generate_rand_portfolios(self, n_portfolios = 10000, months_of_data = 36,
                                  plot=True, weights=False, figsize=(12,6)):
         """Function takes a list of stock symbols as input and generates a given number
@@ -239,14 +246,13 @@ class PortfolioOptimizer():
         # Merge monthly returns from the given period in one data frame
         df = pd.DataFrame()
         for price_series in self.stocks:
-            price_series.add_monthly_returns()
             df[price_series.symbol] = price_series.monthly_returns.tail(months_of_data)
-        
+
         def random_weights(n):
             """Function returns an array of randomly generated weights that sum up to 1"""
             nums = np.random.rand(n)
             return nums/sum(nums)
-        
+
         def create_rand_portfolio(df):
             """Function calculates mean return and standard deviation of a randomly
             generated portfolio of given stocks"""
@@ -255,15 +261,15 @@ class PortfolioOptimizer():
             C = np.asmatrix(np.cov(np.array(df).T))           # variance-covariance matrix
             # calculate the dot product of expected weights and mean returns
             # expected portfolio return:
-            mu = np.dot(w, e_r.T)
+            mu = np.dot(w, e_r.T)*12
             # clalculate the standard deviation of the portfolio
-            std = np.sqrt(w * C * w.T)
+            std = np.sqrt(w * C * w.T)*np.sqrt(12)
             # rerun the random generation if the risk is too high to refuce outliers
             if std > 0.6:
                 return create_rand_portfolio(df)
             #return the expected return, standard deviation and transposed vector of weights
             return mu, std, w.T
-        
+
         # generate given number of random portfolios
         means, stds, w = np.column_stack([create_rand_portfolio(df) for _ in range(n_portfolios)])
         # create a list of return/risk ratios for all portfolios
@@ -278,13 +284,13 @@ class PortfolioOptimizer():
             #create a scatterplot
             plt.figure(figsize=figsize)
             plt.scatter(stds, means, alpha = 0.5, c = colors)
-            plt.xlabel('Standard deviation')
-            plt.ylabel('Expected return')
+            plt.xlabel('Annualized standard deviation')
+            plt.ylabel('Expected annual return')
             # add a side bar with return/risk levels legend
             cbar = plt.colorbar()
             cbar.ax.get_yaxis().labelpad = 15
             cbar.ax.set_ylabel('E(r)/std', rotation=270)
-            
+
             def desc(ex, weights, symbols):
                 """Function creates a description of the expected return and weights of a
                 portfolio"""
@@ -292,7 +298,7 @@ class PortfolioOptimizer():
                 for n, w in enumerate(weights):
                     string += "{}: {}%, ".format(symbols[n], "%.2f" % (np.asscalar(w)*100))
                 return string
-            
+
             # create a description of the most efficient portfolio
             description = desc(best[2], best[1], df.columns)
             # add a pointer with description to the chart
@@ -303,14 +309,14 @@ class PortfolioOptimizer():
         # return weights of the best portfolio
         if weights:
             return best[1]
-        
+
     def plot_returns(self, window=252, figsize=(12,6)):
         """Plots cumulative return of all stocks in the porflolio for a given time
         windo"""
         data = self.returns.tail(window).cumsum()
         t = 'Cumulative log return from last {} days'.format(window)
         data.plot(title=t, figsize=figsize)
-        
+
     def plot_indiv_roll_std(self, window=252, figsize=(12,6)):
         """Displays a plot of trailing annualized standard deviation of individual
         stocks for data available for all stocks"""
@@ -319,16 +325,32 @@ class PortfolioOptimizer():
         t = "Rolling annualized standard deviation od individual stocks, window = {}".format(window)
         roll_std.plot(title=t, figsize=figsize)
 
+    def plot_portfolio_trailing_risk(self, months_of_data=12):
+        # Merge monthly returns from the given period in one data frame
+        data = self.monthly_returns.dropna()
         
+        def portfolio_return(row):
+            return (row*self.weights).sum()
+        
+        #return data.rolling(window=1, axis=1).apply(lambda x: f1(x))
+        trailing_data = pd.DataFrame()
+        trailing_data['Portfolio return'] = data.apply(lambda x: portfolio_return(x), axis=1)
+        trailing_data['Rolling std ann'] = trailing_data.rolling(months_of_data).std()*np.sqrt(12)
+        t = "Annualized trailing risk (std) of the portfolio, window = {} months".format(months_of_data)
+        trailing_data.plot(title=t)
+        return trailing_data
+
 if __name__ == '__main__':
 
     stocks = ['CDR', '11B', 'CCC', 'KGH']
-    
+
     test = PortfolioOptimizer('test')
     test.add_stocks(stocks)
+    test.set_weights(np.array([0.50,  0.01,  0.39,  0.1]))
     #test.plot_returns()
     #print(test.summary())
     #print(test.summary())
     #x = test.correlation(plot=True)
     #print(test.generate_rand_portfolios(plot=True, weights=False))
-    test.plot_indiv_roll_std()
+    #test.plot_indiv_roll_std()
+    x = test.plot_portfolio_trailing_risk()
