@@ -304,19 +304,20 @@ class PortfolioOptimizer():
         if weights:
             return best[1]
         
-    def plot_returns(self, window=252):
+    def plot_returns(self, window=252, figsize=(12,6)):
         """Plots cumulative return of all stocks in the porflolio for a given time
         windo"""
         data = self.returns.tail(window).cumsum()
-        data.plot(title='Cumulative log return from last {} days'.format(window))
+        t = 'Cumulative log return from last {} days'.format(window)
+        data.plot(title=t, figsize=figsize)
         
-    def plot_indiv_roll_std(self, window=252):
+    def plot_indiv_roll_std(self, window=252, figsize=(12,6)):
         """Displays a plot of trailing annualized standard deviation of individual
         stocks for data available for all stocks"""
         data = self.returns.dropna()
         roll_std = data.rolling(252).std()*np.sqrt(252)
         t = "Rolling annualized standard deviation od individual stocks, window = {}".format(window)
-        roll_std.plot(title=t)
+        roll_std.plot(title=t, figsize=figsize)
 
         
 if __name__ == '__main__':
