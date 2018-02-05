@@ -325,7 +325,7 @@ class PortfolioOptimizer():
         t = "Rolling annualized standard deviation od individual stocks, window = {}".format(window)
         roll_std.plot(title=t, figsize=figsize)
 
-    def plot_portfolio_trailing_risk(self, months_of_data=12):
+    def plot_portfolio_trailing_risk(self, months_of_data=24):
         # Merge monthly returns from the given period in one data frame
         data = self.monthly_returns.dropna()
         
@@ -333,24 +333,63 @@ class PortfolioOptimizer():
             return (row*self.weights).sum()
         
         #return data.rolling(window=1, axis=1).apply(lambda x: f1(x))
-        trailing_data = pd.DataFrame()
-        trailing_data['Portfolio return'] = data.apply(lambda x: portfolio_return(x), axis=1)
-        trailing_data['Rolling std ann'] = trailing_data.rolling(months_of_data).std()*np.sqrt(12)
+        self.portfolio_returns = pd.DataFrame()
+        self.portfolio_returns['Portfolio return'] = data.apply(lambda x: portfolio_return(x), axis=1)
+        self.portfolio_returns['Expected ann return'] = self.portfolio_returns.rolling(months_of_data).mean()*12
+        self.portfolio_returns['Rolling std ann'] = self.portfolio_returns['Portfolio return'].rolling(months_of_data).std()*np.sqrt(12)
         t = "Annualized trailing risk (std) of the portfolio, window = {} months".format(months_of_data)
-        trailing_data.plot(title=t)
-        return trailing_data
+        self.portfolio_returns.plot(title=t)
 
+    
+    def plot_portfolio_trailing_risk2(self, months_of_data=24):
+        """Does almost the same thing as the previous function but using standard approach
+        with variance-covariance matrix and matrix calculations. Returns only MA portfolio return 
+        (expected return) and not actual return as the first method does"""
+        from data.formatting import slice_dataframe
+        
+        def create_portfolio(df):
+            """Function calculates mean return and standard deviation of a randomly
+            generated portfolio of given stocks"""
+            e_r = np.asmatrix(np.mean(df.T, axis=1))         # average returns
+            w = np.asmatrix(self.weights)    # randomly generated weights
+            C = np.asmatrix(np.cov(np.array(df).T))           # variance-covariance matrix
+            # calculate the dot product of expected weights and mean returns
+            # expected portfolio return:
+            mu = np.dot(w, e_r.T)
+            # clalculate the standard deviation of the portfolio
+            std = np.sqrt(w * C * w.T)*np.sqrt(12)
+            #return the expected return, standard deviation and transposed vector of weights
+            return (np.asscalar(mu), np.asscalar(std))
+        
+        data = self.monthly_returns.dropna()
+        slices = slice_dataframe(data, months_of_data)
+        return_risk_list = []
+        for slc in slices:
+            return_risk_list.append(create_portfolio(slc))
+        
+        returns = [item[0] for item in return_risk_list]
+        std = [item[1] for item in return_risk_list]
+        last_index_first_slice = slices[0].iloc[len(slices[0])-1].name
+        print(last_index_first_slice)
+        print(len(data.loc[last_index_first_slice:].index))
+        self.portfolio_returns = pd.DataFrame(index=data.loc[last_index_first_slice:].index)
+        self.portfolio_returns['Expected ann return'] = returns
+        self.portfolio_returns['Expected ann return'] = self.portfolio_returns['Expected ann return']*12
+        self.portfolio_returns['Rolling std ann'] = std
+        t = "Annualized trailing risk (std) of the portfolio, window = {} months".format(months_of_data)
+        self.portfolio_returns.plot(title=t)
 if __name__ == '__main__':
 
-    stocks = ['CDR', '11B', 'CCC', 'KGH']
+    stocks = ['CDR', 'PZU', 'CCC', '11B', 'KGH']
 
-    test = PortfolioOptimizer('test')
+    test = PortfolioOptimizer('test') 
     test.add_stocks(stocks)
-    test.set_weights(np.array([0.50,  0.01,  0.39,  0.1]))
+    test.set_weights(np.array([0.50,  0.1,  0.1,  0.2, 0.1]))
     #test.plot_returns()
     #print(test.summary())
     #print(test.summary())
     #x = test.correlation(plot=True)
     #print(test.generate_rand_portfolios(plot=True, weights=False))
     #test.plot_indiv_roll_std()
-    x = test.plot_portfolio_trailing_risk()
+    test.plot_portfolio_trailing_risk()
+    test.plot_portfolio_trailing_risk2()

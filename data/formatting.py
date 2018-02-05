@@ -18,3 +18,19 @@ def chng_date(date, simple = False):
         return date
     else:
         return months[date]
+    
+def slice_dataframe(df, window):
+    """Returns a list of slices of a dataframe (rolling window of all columns)"""
+    dfs = []
+    i = window
+    if window < len(df):
+        while i<=len(df):
+            start = i-window
+            end = i
+            # from start to end and all columns
+            df_slice = df.iloc[start:end,:]
+            dfs.append(df_slice)
+            i+=1
+    return dfs
+            
+    
