@@ -302,7 +302,7 @@ class PortfolioOptimizer():
             # create a description of the most efficient portfolio
             description = desc(best[2], best[1], df.columns)
             # add a pointer with description to the chart
-            plt.annotate(description, xy=(best[3], best[2]), size = 10, xytext=(best[3]-0.02, best[2]+0.01),
+            plt.annotate(description, xy=(best[3], best[2]), size = 10, xytext=(best[3]-0.12, best[2]+0.11),
                         arrowprops=dict(facecolor='grey', shrink=0.05),)
             # add a chart title
             plt.title('Mean and standard deviation of returns of {} randomly generated portfolios'.format(n_portfolios))
@@ -325,7 +325,7 @@ class PortfolioOptimizer():
         t = "Rolling annualized standard deviation od individual stocks, window = {}".format(window)
         roll_std.plot(title=t, figsize=figsize)
 
-    def plot_portfolio_trailing_risk(self, months_of_data=24):
+    def plot_portfolio_trailing_risk(self, months_of_data=24, figsize=(12,6)):
         # Merge monthly returns from the given period in one data frame
         data = self.monthly_returns.dropna()
         
@@ -338,10 +338,10 @@ class PortfolioOptimizer():
         self.portfolio_returns['Expected ann return'] = self.portfolio_returns.rolling(months_of_data).mean()*12
         self.portfolio_returns['Rolling std ann'] = self.portfolio_returns['Portfolio return'].rolling(months_of_data).std()*np.sqrt(12)
         t = "Annualized trailing risk (std) of the portfolio, window = {} months".format(months_of_data)
-        self.portfolio_returns.plot(title=t)
+        self.portfolio_returns.plot(title=t, figsize=figsize)
 
     
-    def plot_portfolio_trailing_risk2(self, months_of_data=24):
+    def plot_portfolio_trailing_risk2(self, months_of_data=24, figsize=(12,6)):
         """Does almost the same thing as the previous function but using standard approach
         with variance-covariance matrix and matrix calculations. Returns only MA portfolio return 
         (expected return) and not actual return as the first method does"""
@@ -370,14 +370,14 @@ class PortfolioOptimizer():
         returns = [item[0] for item in return_risk_list]
         std = [item[1] for item in return_risk_list]
         last_index_first_slice = slices[0].iloc[len(slices[0])-1].name
-        print(last_index_first_slice)
-        print(len(data.loc[last_index_first_slice:].index))
         self.portfolio_returns = pd.DataFrame(index=data.loc[last_index_first_slice:].index)
         self.portfolio_returns['Expected ann return'] = returns
         self.portfolio_returns['Expected ann return'] = self.portfolio_returns['Expected ann return']*12
         self.portfolio_returns['Rolling std ann'] = std
         t = "Annualized trailing risk (std) of the portfolio, window = {} months".format(months_of_data)
-        self.portfolio_returns.plot(title=t)
+        self.portfolio_returns.plot(title=t, figsize=figsize)
+        
+
 if __name__ == '__main__':
 
     stocks = ['CDR', 'PZU', 'CCC', '11B', 'KGH']
