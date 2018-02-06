@@ -17,8 +17,10 @@ def save_price_data_to_db(table, price_data, silent=False):
 
 def read_price_data_from_db(table):
     conn = sqlite3.connect('C:/Users/Daniel/Desktop/PythonProjects/PortfolioManagement/price_data.db')
-    return pd.read_sql_query("SELECT * FROM {}".format('px_' + table), conn, index_col='date', 
+    df = pd.read_sql_query("SELECT * FROM {}".format('px_' + table), conn, index_col='date', 
                              parse_dates={'date': '%Y-%m-%d %H:%M:%S'})    
+    df.index.name = 'date'
+    return df
 
 def save_fin_data_to_db(table, fin_data, period, silent=False):
     conn = sqlite3.connect('C:/Users/Daniel/Desktop/PythonProjects/PortfolioManagement/fin_data.db')

@@ -18,7 +18,7 @@ sns.set()
 
 class PriceSeries():
     """Class that stores historical price data with various methods required
-    in price analysis"""
+    in price analysis."""
 
     def __init__(self, stooq_symbol):
         self.symbol = stooq_symbol
@@ -382,14 +382,14 @@ if __name__ == '__main__':
 
     stocks = ['CDR', 'PZU', 'CCC', '11B', 'KGH']
 
-    test = PortfolioOptimizer('test') 
-    test.add_stocks(stocks)
-    test.set_weights(np.array([0.50,  0.1,  0.1,  0.2, 0.1]))
+    #test = PortfolioOptimizer('test') 
+    #test.add_stocks(stocks)
+    #test.set_weights(np.array([0.50,  0.1,  0.1,  0.2, 0.1]))
     #test.plot_returns()
     #print(test.summary())
     #print(test.summary())
     #x = test.correlation(plot=True)
     #print(test.generate_rand_portfolios(plot=True, weights=False))
     #test.plot_indiv_roll_std()
-    test.plot_portfolio_trailing_risk()
-    test.plot_portfolio_trailing_risk2()
+    #test.plot_portfolio_trailing_risk()
+    #test.plot_portfolio_trailing_risk2()
