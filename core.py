@@ -12,6 +12,7 @@ from data.storage import save_price_data_to_db, read_price_data_from_db
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.mlab as mlab
 import seaborn as sns
 sns.set()
 
@@ -168,7 +169,7 @@ class PriceSeries():
         #general
         summ.set_value('first_day', pd.to_datetime(str(ret.head(1).index.values[0])).strftime('%Y-%m-%d'))
         summ.set_value('last_day', pd.to_datetime(str(ret.tail(1).index.values[0])).strftime('%Y-%m-%d'))
-        summ.set_value('n_observations', len(ret) )
+        summ.set_value('n_observations', len(ret))
         #returns
         summ.set_value('ret_1d', ret.tail(1)[0])
         summ.set_value('ret_5d', roll_return(ret, 5))
@@ -193,6 +194,49 @@ class PriceSeries():
         summ.set_value('n_above_3_sigma', len(ret[ret>(ret.mean()+3*ret.std())]))
         summ.set_value('n_below_3_sigma', len(ret[ret<(ret.mean()-3*ret.std())]))
         return summ
+
+    def price_return_hist(self, n_months=12,  hist=True, kde=False,
+                          display_normal=True, bins=100):
+        """For a given series of stock returns function generates a histogram or 
+        kde plot or both with a corresponding normal distribution density function 
+        for comparison.
+        
+        Parameters:
+            n_months: int
+                number of months of returns to plot
+            hist: bool
+                determines if histogram will be shown
+            kde: bool
+                determines if kernel density function will be shown
+            display_normal: bool
+                determines if normal disc density function will be shown
+            n_bins: int
+                how many bins to display on histogram"""
+                
+        returns = self.data['log_return'].tail(n_months*21)
+        # mean return
+        mu = returns.mean()
+        # standard deviation of return
+        sigma = returns.std()
+        if hist:
+            # create histogram of returns 
+            [n,bins_intervals,patches] = plt.hist(returns, bins, normed=True)
+            if display_normal:
+                # create plot of normal dist density function with returns' mean and sd
+                x = mlab.normpdf(bins_intervals, mu, sigma)
+                plt.plot(bins_intervals, x, color='red', lw=2)
+        elif display_normal:
+            # create plot of normal dist density function with returns' mean and sd
+            bins_intervals = np.linspace(returns.min(), returns.max(), bins)
+            x = mlab.normpdf(bins_intervals, mu, sigma)
+            plt.plot(bins_intervals, x, color='red', lw=2)
+        plt.title("Return distribution of {} from last {} sessions".format(self.symbol, len(returns)))
+        plt.xlabel("Returns")
+        plt.ylabel("Frequency")
+        # create kernel density estimation plot
+        if kde:
+            sns.kdeplot(returns)
+        plt.show()
 
 
 class PortfolioOptimizer():
@@ -381,6 +425,7 @@ class PortfolioOptimizer():
 if __name__ == '__main__':
 
     stocks = ['CDR', 'PZU', 'CCC', '11B', 'KGH']
+    test = PriceSeries('CDR')
 
     #test = PortfolioOptimizer('test') 
     #test.add_stocks(stocks)
