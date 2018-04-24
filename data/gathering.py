@@ -83,15 +83,18 @@ def download_historical_prices(symbol):
         url = 'http://stooq.pl/q/d/l/?s={}&i=d'.format(symbol)
         # load prices from downloaded CSV file using pandas
         px_series = pd.read_csv(url)
-        # setup column names
-        px_series.columns = ["date", "open", "high", "low", "close", "volume"]
-        # setup quote date as index of the DataFrame
-        px_series.set_index("date", inplace = True)
-        # change the index format to pythons datetime format
-        px_series.index = pd.to_datetime(px_series.index, 
-                                         yearfirst = True)
-        return px_series
-    except pd.io.common.EmptyDataError:
+        if len(px_series.columns) == 6:
+            # setup column names
+            px_series.columns = ["date", "open", "high", "low", "close", "volume"]
+            # setup quote date as index of the DataFrame
+            px_series.set_index("date", inplace = True)
+            # change the index format to pythons datetime format
+            px_series.index = pd.to_datetime(px_series.index, 
+                                             yearfirst = True)
+            return px_series
+        else:
+            return []
+    except (pd.io.common.EmptyDataError, ConnectionAbortedError):
         return []
 
 def download_historical_fin_data(symbol, period ='ann'):

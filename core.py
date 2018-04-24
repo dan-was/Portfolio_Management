@@ -427,7 +427,7 @@ if __name__ == '__main__':
 
     stocks = ['CDR', 'PZU', 'CCC', '11B', 'KGH', 'MBK', 'EUR']
     test = PriceSeries('EUR')
-
+    test.download_prices_of_all_stocks()
 #    test = PortfolioOptimizer('test')
 #    test.add_stocks(stocks)
 #    test.set_weights(np.array([0.50,  0.1,  0.1,  0.2, 0.1]))
