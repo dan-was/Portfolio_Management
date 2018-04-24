@@ -78,18 +78,21 @@ def download_historical_prices(symbol):
     """The function downloads all historical (daily) prices for a given symbol. 
     The data is acquired from stooq.pl and stooq codes should be used. There 
     is a limit of 50 downloads per day which requires IP change when reached."""
-    # download page's content
-    url = 'http://stooq.pl/q/d/l/?s={}&i=d'.format(symbol)
-    # load prices from downloaded CSV file using pandas
-    px_series = pd.read_csv(url)
-    # setup column names
-    px_series.columns = ["date", "open", "high", "low", "close", "volume"]
-    # setup quote date as index of the DataFrame
-    px_series.set_index("date", inplace = True)
-    # change the index format to pythons datetime format
-    px_series.index = pd.to_datetime(px_series.index, 
-                                     yearfirst = True)
-    return px_series
+    try:
+        # download page's content
+        url = 'http://stooq.pl/q/d/l/?s={}&i=d'.format(symbol)
+        # load prices from downloaded CSV file using pandas
+        px_series = pd.read_csv(url)
+        # setup column names
+        px_series.columns = ["date", "open", "high", "low", "close", "volume"]
+        # setup quote date as index of the DataFrame
+        px_series.set_index("date", inplace = True)
+        # change the index format to pythons datetime format
+        px_series.index = pd.to_datetime(px_series.index, 
+                                         yearfirst = True)
+        return px_series
+    except pd.io.common.EmptyDataError:
+        return []
 
 def download_historical_fin_data(symbol, period ='ann'):
     """Downloads financial results/data from bankier.pl. Can be set to annual (default)

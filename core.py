@@ -19,18 +19,19 @@ sns.set()
 
 class PriceSeries():
     """Class that stores historical price data with various methods required
-    in price analysis."""
+    in price analysis. Data source is set to database 'db' by default but if
+    data is not available can be changed to 'web' to download it from stooq"""
 
-    def __init__(self, stooq_symbol):
+    def __init__(self, stooq_symbol, source = 'db'):
         self.symbol = stooq_symbol
-        try:
+        if source == 'db':
             self.data = read_price_data_from_db(self.symbol)
-        except:
+        elif source == 'web':
             self.data = download_historical_prices(self.symbol)
             self.save_data_to_db()
         self.add_returns()
         self.add_monthly_returns()
-
+        
     def download_prices_of_all_stocks(self):
         """Downloads list of stock symbols from stooq.pl and iterates through
         it to download historical OHLCV data and store it in a database file.
@@ -43,29 +44,27 @@ class PriceSeries():
         if not hasattr(self, 'symbols'):
             # download available stooq symbols
             self.symbols = download_stooq_symbols()
+            print("{} symbols downloaded".format(len(self.symbols)))
         # set a variable that stops iterations when limit is reached
         limit = False
         for symbol in self.symbols:
             if not limit:
                 if symbol[0] not in self.downloaded:
-                    try:
-                        # download prices
-                        data = download_historical_prices(symbol[0])
-                        # check if response contains any data
-                        if len(data)>0:
-                            # save to db, print status and add to downloaded list
-                            save_price_data_to_db(symbol[0], data)
-                            print("Downloaded {}".format(symbol))
-                            self.downloaded.append(symbol[0])
-                        else:
-                            # stop downloading when limit is reached
-                            print("Limit reached, change IP and run again")
-                            limit = True
-                            break
-                    except:
-                        continue
+                    # download prices
+                    data = download_historical_prices(symbol[0])
+                    # check if response contains any data
+                    if len(data) > 0:
+                        # save to db, print status and add to downloaded list
+                        save_price_data_to_db(symbol[0], data)
+                        print("Downloaded {}".format(symbol))
+                        self.downloaded.append(symbol[0])
+                    else:
+                        # stop downloading when limit is reached
+                        print("Limit reached, change IP and run again")
+                        limit = True
+                        break
     @classmethod
-    def update_prices(cls, only_last = True, date_offset = 0):
+    def update_prices(cls, only_last=True, date_offset=0):
         """When only_last is True method downloads only the last price of all
         available symbols. If set to False downloads up to 40 but can be limited
         to ~150 downloads per day. Offset used to set last business day and
@@ -141,7 +140,7 @@ class PriceSeries():
         else:
             col_name = 'rolling_w_std_{}'.format(window)
             roll = self.data['log_return'].rolling(window)
-            weights = np.linspace(0,1,window)/sum(np.linspace(0,1,window))
+            weights = np.linspace(0, 1, window)/sum(np.linspace(0, 1, window))
             self.data[col_name] = roll.apply(lambda x: (x*weights).std())
         if annualized:
             self.data[col_name] = self.data[col_name] * np.sqrt(252)
@@ -156,13 +155,13 @@ class PriceSeries():
         ret = self.data['log_return']
         #returns
         def roll_return(returns, window):
-            if len(returns)>=window:
+            if len(returns) >= window:
                 return returns.tail(window).sum()
             else:
                 return np.nan
 
         def roll_std(returns, window):
-            if len(returns)>=window:
+            if len(returns) >= window:
                 return returns.tail(window).std()
             else:
                 return np.nan
@@ -191,16 +190,16 @@ class PriceSeries():
         summ.set_value('kurt_3y', ret.tail(252*3).kurt())
         summ.set_value('max_1d_ret', max(ret))
         summ.set_value('min_1d_ret', min(ret))
-        summ.set_value('n_above_3_sigma', len(ret[ret>(ret.mean()+3*ret.std())]))
-        summ.set_value('n_below_3_sigma', len(ret[ret<(ret.mean()-3*ret.std())]))
+        summ.set_value('n_above_3_sigma', len(ret[ret > (ret.mean()+3*ret.std())]))
+        summ.set_value('n_below_3_sigma', len(ret[ret < (ret.mean()-3*ret.std())]))
         return summ
 
-    def price_return_hist(self, n_months=12,  hist=True, kde=False,
+    def price_return_hist(self, n_months=12, hist=True, kde=False,
                           display_normal=True, bins=100):
-        """For a given series of stock returns function generates a histogram or 
-        kde plot or both with a corresponding normal distribution density function 
+        """For a given series of stock returns function generates a histogram or
+        kde plot or both with a corresponding normal distribution density function
         for comparison.
-        
+
         Parameters:
             n_months: int
                 number of months of returns to plot
@@ -212,19 +211,19 @@ class PriceSeries():
                 determines if normal disc density function will be shown
             n_bins: int
                 how many bins to display on histogram"""
-                
+
         returns = self.data['log_return'].tail(n_months*21)
         # mean return
         mu = returns.mean()
         # standard deviation of return
         sigma = returns.std()
         if hist:
-            # create histogram of returns 
+            # create histogram of returns
             [n,bins_intervals,patches] = plt.hist(returns, bins, normed=True)
             if display_normal:
                 # create plot of normal dist density function with returns' mean and sd
-                x = mlab.normpdf(bins_intervals, mu, sigma)
-                plt.plot(bins_intervals, x, color='red', lw=2)
+                norm_dist_points = mlab.normpdf(bins_intervals, mu, sigma)
+                plt.plot(bins_intervals, norm_dist_points, color='red', lw=2)
         elif display_normal:
             # create plot of normal dist density function with returns' mean and sd
             bins_intervals = np.linspace(returns.min(), returns.max(), bins)
@@ -243,7 +242,7 @@ class PortfolioOptimizer():
     """Class that allows to construct and optimize a portfolio of stocks"""
 
     def __init__(self, name):
-       self.name = name
+        self.name = name
 
     def __str__(self):
         return "Portfolio {} of: {}".format(self.name, ", ".join(self.symbols))
@@ -347,9 +346,10 @@ class PortfolioOptimizer():
             description = desc(best[2], best[1], df.columns)
             # add a pointer with description to the chart
             plt.annotate(description, xy=(best[3], best[2]), size = 10, xytext=(best[3]-0.12, best[2]+0.11),
-                        arrowprops=dict(facecolor='grey', shrink=0.05),)
+                         arrowprops=dict(facecolor='grey', shrink=0.05),)
             # add a chart title
             plt.title('Mean and standard deviation of returns of {} randomly generated portfolios'.format(n_portfolios))
+            plt.show()
         # return weights of the best portfolio
         if weights:
             return best[1]
@@ -360,6 +360,7 @@ class PortfolioOptimizer():
         data = self.returns.tail(window).cumsum()
         t = 'Cumulative log return from last {} days'.format(window)
         data.plot(title=t, figsize=figsize)
+        plt.show()
 
     def plot_indiv_roll_std(self, window=252, figsize=(12,6)):
         """Displays a plot of trailing annualized standard deviation of individual
@@ -372,10 +373,10 @@ class PortfolioOptimizer():
     def plot_portfolio_trailing_risk(self, months_of_data=24, figsize=(12,6)):
         # Merge monthly returns from the given period in one data frame
         data = self.monthly_returns.dropna()
-        
+
         def portfolio_return(row):
             return (row*self.weights).sum()
-        
+
         #return data.rolling(window=1, axis=1).apply(lambda x: f1(x))
         self.portfolio_returns = pd.DataFrame()
         self.portfolio_returns['Portfolio return'] = data.apply(lambda x: portfolio_return(x), axis=1)
@@ -384,13 +385,13 @@ class PortfolioOptimizer():
         t = "Annualized trailing risk (std) of the portfolio, window = {} months".format(months_of_data)
         self.portfolio_returns.plot(title=t, figsize=figsize)
 
-    
+
     def plot_portfolio_trailing_risk2(self, months_of_data=24, figsize=(12,6)):
         """Does almost the same thing as the previous function but using standard approach
-        with variance-covariance matrix and matrix calculations. Returns only MA portfolio return 
+        with variance-covariance matrix and matrix calculations. Returns only MA portfolio return
         (expected return) and not actual return as the first method does"""
         from data.formatting import slice_dataframe
-        
+
         def create_portfolio(df):
             """Function calculates mean return and standard deviation of a randomly
             generated portfolio of given stocks"""
@@ -404,13 +405,13 @@ class PortfolioOptimizer():
             std = np.sqrt(w * C * w.T)*np.sqrt(12)
             #return the expected return, standard deviation and transposed vector of weights
             return (np.asscalar(mu), np.asscalar(std))
-        
+
         data = self.monthly_returns.dropna()
         slices = slice_dataframe(data, months_of_data)
         return_risk_list = []
         for slc in slices:
             return_risk_list.append(create_portfolio(slc))
-        
+
         returns = [item[0] for item in return_risk_list]
         std = [item[1] for item in return_risk_list]
         last_index_first_slice = slices[0].iloc[len(slices[0])-1].name
@@ -420,21 +421,21 @@ class PortfolioOptimizer():
         self.portfolio_returns['Rolling std ann'] = std
         t = "Annualized trailing risk (std) of the portfolio, window = {} months".format(months_of_data)
         self.portfolio_returns.plot(title=t, figsize=figsize)
-        
+
 
 if __name__ == '__main__':
 
-    stocks = ['CDR', 'PZU', 'CCC', '11B', 'KGH']
-    test = PriceSeries('CDR')
+    stocks = ['CDR', 'PZU', 'CCC', '11B', 'KGH', 'MBK', 'EUR']
+    test = PriceSeries('EUR')
 
-    #test = PortfolioOptimizer('test') 
-    #test.add_stocks(stocks)
-    #test.set_weights(np.array([0.50,  0.1,  0.1,  0.2, 0.1]))
-    #test.plot_returns()
+#    test = PortfolioOptimizer('test')
+#    test.add_stocks(stocks)
+#    test.set_weights(np.array([0.50,  0.1,  0.1,  0.2, 0.1]))
+#    test.plot_returns()
     #print(test.summary())
-    #print(test.summary())
-    #x = test.correlation(plot=True)
-    #print(test.generate_rand_portfolios(plot=True, weights=False))
+#    x = test.correlation(plot=True)
+    #print(x)
+#    print(test.generate_rand_portfolios(plot=True, weights=False))
     #test.plot_indiv_roll_std()
     #test.plot_portfolio_trailing_risk()
     #test.plot_portfolio_trailing_risk2()
