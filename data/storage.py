@@ -11,7 +11,7 @@ import pandas as pd
 
 def save_price_data_to_db(table, price_data, silent=False):
     conn = sqlite3.connect('C:/Users/Daniel/Desktop/PythonProjects/PortfolioManagement/price_data.db')
-    price_data.to_sql('px_' + table, conn, if_exists='replace')
+    price_data.to_sql('px_' + table, conn, if_exists='replace', index_label='date')
     if not silent:
         print("Price data saved in {} table".format(table))
 

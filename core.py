@@ -32,7 +32,7 @@ class PriceSeries():
         self.add_returns()
         self.add_monthly_returns()
         
-    def download_prices_of_all_stocks(self):
+    def download_all_historical_prices_for_all_stocks(self):
         """Downloads list of stock symbols from stooq.pl and iterates through
         it to download historical OHLCV data and store it in a database file.
         Can be run few times on the same instance to continue downloading after
@@ -64,7 +64,7 @@ class PriceSeries():
                         limit = True
                         break
     @classmethod
-    def update_prices(cls, only_last=True, date_offset=0):
+    def update_prices_for_all_stocks(cls, only_last=True, date_offset=0):
         """When only_last is True method downloads only the last price of all
         available symbols. If set to False downloads up to 40 but can be limited
         to ~150 downloads per day. Offset used to set last business day and
@@ -72,6 +72,7 @@ class PriceSeries():
         For example for Saturday: date_offset=-1 (if Friday was a trading day"""
         # list of stock symbols avaliable
         symbols = download_stooq_symbols()
+        print("{} symbols downloaded".format(len(symbols)))
         # find the last business/trading day
         last_b_day = pd.datetime.today()+pd.Timedelta(days=date_offset)
         # last business day tuple
@@ -87,7 +88,7 @@ class PriceSeries():
                 # find last price observation day in the database
                 last_date = px.data.tail(1).index[0]
                 # if last observation date is different than last business day
-                # some data is missing so try to download it
+                # some data is missing so try to downloading it
                 if (last_date.day, last_date.month, last_date.year) != bd_tuple:
                     try:
                         # by default download only last price
@@ -104,6 +105,7 @@ class PriceSeries():
                             if date not in px.data.index:
                                 row = new_data.xs(date)
                                 px.data = px.data.append(row)
+                                px.add_returns()
                                 rows_updated += 1
                         # save updated price series to the database
                         px.save_data_to_db(silent=True)
@@ -426,8 +428,9 @@ class PortfolioOptimizer():
 if __name__ == '__main__':
 
     stocks = ['CDR', 'PZU', 'CCC', '11B', 'KGH', 'MBK', 'EUR']
-    test = PriceSeries('EUR')
-    test.download_prices_of_all_stocks()
+    test = PriceSeries('CDR')
+    test.update_prices_for_all_stocks()
+#    test.download_prices_of_all_stocks()
 #    test = PortfolioOptimizer('test')
 #    test.add_stocks(stocks)
 #    test.set_weights(np.array([0.50,  0.1,  0.1,  0.2, 0.1]))
