@@ -211,7 +211,10 @@ def download_last_40_prices(symbol):
     # find the rable that contains price data
     price_table = soup.find("table", {"class": "fth1"})
     # find table body
-    table_body = price_table.find('tbody')
+    try:
+        table_body = price_table.find('tbody')
+    except AttributeError:
+        return None
     # find all rows in table
     rows = table_body.find_all('tr')
     # create empty list to store data    

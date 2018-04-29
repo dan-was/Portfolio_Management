@@ -43,8 +43,7 @@ class PriceSeries():
             self.downloaded = []
         if not hasattr(self, 'symbols'):
             # download available stooq symbols
-            self.symbols = download_stooq_symbols()
-            print("{} symbols downloaded".format(len(self.symbols)))
+            self.get_symbols()
         # set a variable that stops iterations when limit is reached
         limit = False
         for symbol in self.symbols:
@@ -63,61 +62,86 @@ class PriceSeries():
                         print("Limit reached, change IP and run again")
                         limit = True
                         break
-    @classmethod
-    def update_prices_for_all_stocks(cls, only_last=True, date_offset=0):
+                    
+    def get_symbols(self):
+        self.symbols = download_stooq_symbols()
+        print("{} symbols downloaded".format(len(self.symbols)))
+    
+    def update_prices(self, only_last=True, date_offset=0):
+        """When only_last is True  downloads only the last price of the stock.
+        If set to False downloads up to 40 but can be limited to ~150 downloads 
+        per day. Offset used to set last business day and prevent downloading 
+        data multiple times on weekends/non-trading days. 
+        For example for Saturday: date_offset=-1 (if Friday was a trading day)"""
+        # find the last business/trading day
+        last_b_day = pd.datetime.today()+pd.Timedelta(days=date_offset)
+        # last business day tuple
+        bd_tuple = (last_b_day.day, last_b_day.month, last_b_day.year)
+        # make sure the price data is sorted by date
+        self.data = self.data.sort_index()
+        # find last price observation day in the database
+        last_date = self.data.tail(1).index[0]
+        # if last observation date is different than last business day
+        # some data is missing so try to downloading it
+        if (last_date.day, last_date.month, last_date.year) != bd_tuple:
+            # by default download only last price
+            if only_last:
+                new_data = download_last_price(self.symbol)
+            # if not "only_last" try downloading last 40 (subject to daily limits)
+            else:
+                new_data = download_last_40_prices(self.symbol)
+            # count new rows added to the database
+            rows_updated = 0
+            if new_data is not None:
+                # for each downloaded date
+                for date in new_data.index:
+                    # if it's not already in the database then add it
+                    if date not in self.data.index:
+                        row = new_data.xs(date)
+                        self.data = self.data.append(row)
+                        rows_updated += 1
+                # save updated price series to the database
+                self.data = self.data.sort_index()
+                self.add_returns()
+                self.save_data_to_db(silent=True)
+                print('{} - added {} new prices'.format(self.symbol, rows_updated))
+            else:
+                raise ValueError("{} - no data downloaded")
+        else:
+            self.downloaded.append(self.symbol)
+            print('{} already up to date'.format(self.symbol))
+            
+    def update_prices_for_all_stocks(self, only_last=True, date_offset=0):
         """When only_last is True method downloads only the last price of all
         available symbols. If set to False downloads up to 40 but can be limited
         to ~150 downloads per day. Offset used to set last business day and
         prevent downloading data multiple times on weekends/non-trading days
         For example for Saturday: date_offset=-1 (if Friday was a trading day"""
-        # list of stock symbols avaliable
-        symbols = download_stooq_symbols()
-        print("{} symbols downloaded".format(len(symbols)))
-        # find the last business/trading day
-        last_b_day = pd.datetime.today()+pd.Timedelta(days=date_offset)
-        # last business day tuple
-        bd_tuple = (last_b_day.day, last_b_day.month, last_b_day.year)
+        # check if downloaded and symbols lists are already initialized
+        if not hasattr(self, 'downloaded'):
+            self.downloaded = []
+        if not hasattr(self, 'symbols'):
+            # download available stooq symbols
+            self.get_symbols()
         # boolean value that stops the loop when set to false
         keep_iterating = True
         # number of prices failed to update
-        error_count = 0
-        for symbol in symbols:
-            if keep_iterating:
-                # load price data from database by initializing price series object
-                px = cls(symbol[0])
-                # find last price observation day in the database
-                last_date = px.data.tail(1).index[0]
-                # if last observation date is different than last business day
-                # some data is missing so try to downloading it
-                if (last_date.day, last_date.month, last_date.year) != bd_tuple:
+        self.error_count = 0
+        for symbol in self.symbols:
+            if symbol[0] not in self.downloaded:
+                if keep_iterating:
+                    # load price data from database by initializing price series object
                     try:
-                        # by default download only last price
-                        if only_last:
-                            new_data = download_last_price(symbol[0])
-                        # if last try downloading last 40 (subject to daily limits)
-                        else:
-                            new_data = download_last_40_prices(symbol[0])
-                        # count new rows added to the database
-                        rows_updated = 0
-                        # for each downloaded date
-                        for date in new_data.index:
-                            # if it's not already in the database then add it
-                            if date not in px.data.index:
-                                row = new_data.xs(date)
-                                px.data = px.data.append(row)
-                                px.add_returns()
-                                rows_updated += 1
-                        # save updated price series to the database
-                        px.save_data_to_db(silent=True)
-                        print('{} - added {} new prices'.format(symbol[0], rows_updated))
-                    except:
-                        print("Error with {}".format(symbol[0]))
-                        error_count += 1
-                        if error_count > 5:
-                            keep_iterating = False
-                        continue
-                else:
-                    print('{} already up to date'.format(symbol[0]))
+                        px = PriceSeries(symbol[0])
+                        px.update_prices(only_last=only_last, date_offset=date_offset)
+                        self.downloaded.append(symbol[0])
+                    except pd.io.sql.DatabaseError:
+                        print('No data found for {}'.format(symbol[0]))
+                    except ValueError:
+                        self.error_count += 1
+                    if self.error_count >= 5:
+                        keep_iterating = False
+                        print("Limit reached!")
 
     def save_data_to_db(self, silent=False):
         columns = ['open', 'high', 'low', 'close', 'volume']
@@ -427,18 +451,18 @@ class PortfolioOptimizer():
 
 if __name__ == '__main__':
 
-    stocks = ['CDR', 'PZU', 'CCC', '11B', 'KGH', 'MBK', 'EUR']
-    test = PriceSeries('CDR')
-    test.update_prices_for_all_stocks()
+#    stocks = ['CDR', 'PZU', 'CCC', '11B']
+    test = PriceSeries('PZU')
+#    test.update_prices_for_all_stocks(only_last=False)
 #    test.download_prices_of_all_stocks()
 #    test = PortfolioOptimizer('test')
 #    test.add_stocks(stocks)
 #    test.set_weights(np.array([0.50,  0.1,  0.1,  0.2, 0.1]))
 #    test.plot_returns()
-    #print(test.summary())
+#    print(test.summary())
 #    x = test.correlation(plot=True)
     #print(x)
 #    print(test.generate_rand_portfolios(plot=True, weights=False))
-    #test.plot_indiv_roll_std()
-    #test.plot_portfolio_trailing_risk()
-    #test.plot_portfolio_trailing_risk2()
+#    test.plot_indiv_roll_std()
+#    test.plot_portfolio_trailing_risk()
+#    test.plot_portfolio_trailing_risk2()
