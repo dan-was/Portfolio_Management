@@ -62,6 +62,8 @@ def download_bankier_symbols(index=''):
     soup = BeautifulSoup(req.content, "lxml")
     # extract te symbols from table
     data_table = soup.find("div", {"class": "boxContent"})
+    if len(data_table) == 5:
+        data_table = soup.find_all("div", {"class": "boxContent"})[1]
     table_body = data_table.find('tbody')
     rows = table_body.find_all('tr')
     data = []
@@ -389,13 +391,8 @@ def download_bankier_article(url):
     # return a list of entry date, article content and url
     return [entry_date, article_header, article_formatted, url]
 
-def download_bankier_articles(symbol, n_pages='all'):
-    """For a given symbol downloads available articles related to company with
-    a timestamp.
-    
-    Params:
-        n_pages: int or str: "all"
-    """
+def download_bankier_article_urls(symbol, n_pages='all'):
+    """Downloads urls urls of all available articles related to a given stock"""
     if n_pages == "all":
         # determine how many pages of articles are available for the given symbol
         n_pages = find_last_news_page_bankier(symbol)
@@ -419,7 +416,17 @@ def download_bankier_articles(symbol, n_pages='all'):
             except:
                 continue
     # transform links set to a list
-    article_links = list(article_links)
+    return list(article_links)
+
+
+def download_bankier_articles(symbol, n_pages='all'):
+    """For a given symbol downloads available articles related to company with
+    a timestamp.
+    
+    Params:
+        n_pages: int or str: "all"
+    """
+    article_links = download_bankier_article_urls(symbol, n_pages)
     # create an empty list to store article's content
     articles = []
     n = 0 # counter

@@ -452,8 +452,8 @@ class PortfolioOptimizer():
 if __name__ == '__main__':
 
 #    stocks = ['CDR', 'PZU', 'CCC', '11B']
-    test = PriceSeries('PZU')
-#    test.update_prices_for_all_stocks(only_last=False)
+    test = PriceSeries('11B')
+    test.update_prices_for_all_stocks()
 #    test.download_prices_of_all_stocks()
 #    test = PortfolioOptimizer('test')
 #    test.add_stocks(stocks)

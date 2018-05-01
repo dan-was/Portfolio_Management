@@ -24,11 +24,11 @@ def read_price_data_from_db(table):
 
 def save_fin_data_to_db(table, fin_data, period, silent=False):
     conn = sqlite3.connect('C:/Users/Daniel/Desktop/PythonProjects/PortfolioManagement/fin_data.db')
-    fin_data.to_sql('fin_{}_{}'.format(table, period), conn, if_exists='replace')
+    fin_data.to_sql('fin_{}_{}'.format(table, period), conn, if_exists='replace', , index_label='date')
     if not silent:
         print("Financial data saved in {} table".format(table)) 
 
-def read_fin_data_to_db(table, period):
+def read_fin_data_from_db(table, period):
     conn = sqlite3.connect('C:/Users/Daniel/Desktop/PythonProjects/PortfolioManagement/fin_data.db')
     return pd.read_sql_query('SELECT * FROM fin_{}_{}'.format(table, period), 
                              conn, index_col='date')
