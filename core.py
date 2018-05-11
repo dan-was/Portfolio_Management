@@ -8,6 +8,8 @@ Created on Sun Dec 17 00:47:33 2017
 
 from data.gathering import download_historical_prices, download_stooq_symbols
 from data.gathering import download_last_40_prices, download_last_price
+from data.gathering import download_bankier_articles, download_bankier_article_urls
+from data.gathering import download_bankier_article, download_bankier_symbols
 from data.storage import save_price_data_to_db, read_price_data_from_db
 import numpy as np
 import pandas as pd
@@ -139,6 +141,9 @@ class PriceSeries():
                         print('No data found for {}'.format(symbol[0]))
                     except ValueError:
                         self.error_count += 1
+                    except (IndexError, AttributeError):
+                        print("Issue with {}".format(symbol[0]))
+                        continue
                     if self.error_count >= 5:
                         keep_iterating = False
                         print("Limit reached!")
@@ -263,6 +268,66 @@ class PriceSeries():
             sns.kdeplot(returns)
         plt.show()
 
+
+class Articles():
+    
+    def __init__(self, symbol):
+        self.symbol = symbol
+        try:
+            self.load_data_from_db()
+        except pd.io.sql.DatabaseError:
+            self.download_all_articles()
+            
+    def save_data_to_db(self):
+        save_articles_to_db(self.data, self.symbol)
+        
+    def load_data_from_db(self):
+        self.data = read_articles_from_db(self.symbol)
+        
+    def download_all_articles(self):
+        article_list = download_bankier_articles(self.symbol)
+        self.data = pd.DataFrame()
+        self.data['date'] = [pd.to_datetime(article[0]) for article in article_list]
+        self.data['header'] = [article[1].strip() for article in article_list]
+        self.data['content'] = [article[2].strip() for article in article_list]
+        self.data['url'] = [article[3].strip() for article in article_list]
+        self.data['source'] = ['bankier' for item in article_list]
+        self.data.set_index('date', inplace = True)
+        self.data = self.data.sort_index(ascending=False)
+        self.save_data_to_db()
+        
+    def update_articles(self):
+        available_urls = download_bankier_article_urls(self.symbol)
+        downloaded_urls = list(self.data['url'])
+        counter = 0
+        for url in available_urls:
+            if url not in downloaded_urls:
+                try:
+                    art = download_bankier_article(url)
+                    art.append('bankier')
+                    art_df = pd.DataFrame([art], columns =["date", "header", "content", 
+                                                      "url", "source"])
+                    art_df.set_index("date", inplace = True)
+                    art_df.index = pd.to_datetime(art_df.index, yearfirst = True)
+                    self.data.append(art_df)
+                    counter += 1
+                except:
+                    continue
+        print("{} - downloaded {} new articles".format(self.symbol, counter))
+        if counter > 0:
+            self.data = self.data.sort_index(ascending=False)
+            self.save_data_to_db()
+            
+    @classmethod
+    def update_articles_for_all_stocks(cls):
+        symbols = download_bankier_symbols()
+        for symbol in symbols:
+            try:
+                test = cls(symbol)
+                test.update_articles()
+            except:
+                continue
+            
 
 class PortfolioOptimizer():
     """Class that allows to construct and optimize a portfolio of stocks"""

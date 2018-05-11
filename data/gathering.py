@@ -432,10 +432,14 @@ def download_bankier_articles(symbol, n_pages='all'):
     n = 0 # counter
     for link in article_links:
         # download article and add it to the list
-        articles.append(download_bankier_article(link))
-        # increment number of downloaded and display progress
-        n += 1
-        print(n, "of", len(article_links), "downloaded")
+        try:
+            articles.append(download_bankier_article(link))
+            # increment number of downloaded and display progress
+            n += 1
+            print(n, "of", len(article_links), "downloaded")
+        except:
+            print("Error with {}".format(link))
+            continue
     # filter out articles withour any content
     articles_filtered = [article for article in articles if article[1] != ""]
     # return list of downloaded articles
