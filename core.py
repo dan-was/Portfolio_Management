@@ -11,6 +11,7 @@ from data.gathering import download_last_40_prices, download_last_price
 from data.gathering import download_bankier_articles, download_bankier_article_urls
 from data.gathering import download_bankier_article, download_bankier_symbols
 from data.storage import save_price_data_to_db, read_price_data_from_db
+from data.storage import save_articles_to_db, read_articles_from_db
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -270,6 +271,8 @@ class PriceSeries():
 
 
 class Articles():
+    """Class that stores articles related to stocks and provides methods
+    to analayze textual data"""
     
     def __init__(self, symbol):
         self.symbol = symbol
@@ -279,13 +282,18 @@ class Articles():
             self.download_all_articles()
             
     def save_data_to_db(self):
+        """Saves all articles in a sqlite database file"""
         save_articles_to_db(self.data, self.symbol)
         
     def load_data_from_db(self):
+        """Loads articles from sqlite db file"""
         self.data = read_articles_from_db(self.symbol)
         
     def download_all_articles(self):
+        """Downloads all articles from bankier.pl related to a given stock symbol"""
+        # download all available articles related to a given symbol
         article_list = download_bankier_articles(self.symbol)
+        # transform downloaded data into a dataframe
         self.data = pd.DataFrame()
         self.data['date'] = [pd.to_datetime(article[0]) for article in article_list]
         self.data['header'] = [article[1].strip() for article in article_list]
@@ -294,12 +302,18 @@ class Articles():
         self.data['source'] = ['bankier' for item in article_list]
         self.data.set_index('date', inplace = True)
         self.data = self.data.sort_index(ascending=False)
+        # save dataframe with articles to database file
         self.save_data_to_db()
         
     def update_articles(self):
+        """Compares the list of downloaded articles with articles available
+        and downloads the ones that are missing"""
+        # download a list of urls of all available articles
         available_urls = download_bankier_article_urls(self.symbol)
+        # create a list of all urls that already have been downloaded
         downloaded_urls = list(self.data['url'])
         counter = 0
+        # download all articles that have not been downloaded yet
         for url in available_urls:
             if url not in downloaded_urls:
                 try:
@@ -314,12 +328,14 @@ class Articles():
                 except:
                     continue
         print("{} - downloaded {} new articles".format(self.symbol, counter))
+        # if any new articles were downloaded sort the dataset and save it in db
         if counter > 0:
             self.data = self.data.sort_index(ascending=False)
             self.save_data_to_db()
             
     @classmethod
     def update_articles_for_all_stocks(cls):
+        """Runs 'update_articles' method on all available symbols"""
         symbols = download_bankier_symbols()
         for symbol in symbols:
             try:
@@ -516,9 +532,12 @@ class PortfolioOptimizer():
 
 if __name__ == '__main__':
 
-#    stocks = ['CDR', 'PZU', 'CCC', '11B']
+    stocks = ['CDR', 'PZU', 'CCC', '11B']
     test = PriceSeries('11B')
-    test.update_prices_for_all_stocks()
+#    test.download_all_historical_prices_for_all_stocks()
+#    test.update_prices_for_all_stocks()
+#    test = Articles("CDPROJEKT")
+#    test.update_articles_for_all_stocks()
 #    test.download_prices_of_all_stocks()
 #    test = PortfolioOptimizer('test')
 #    test.add_stocks(stocks)
